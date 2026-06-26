@@ -1,0 +1,18 @@
+# build output
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# tests & coverage
+*.test
+*.out
+coverage.*
+coverage/
+
+# local / ephemeral
+reference/
+.scripts/
+.env
