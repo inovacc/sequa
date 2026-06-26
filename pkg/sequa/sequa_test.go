@@ -6,11 +6,28 @@ import (
 	"os"
 	"testing"
 
+	dbpkg "github.com/inovacc/sequa/internal/db"
 	"github.com/inovacc/sequa/pkg/sequa"
 )
 
 //go:embed testdata/migrations/*.sql
 var migrationsFS embed.FS
+
+// resetSchema drops the migration-tracking tables and this test's table so the
+// test starts from a clean database. Integration tests share one Postgres, so
+// each must isolate itself rather than rely on leftover state.
+func resetSchema(t *testing.T, dsn string) {
+	t.Helper()
+	db, err := dbpkg.Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("reset open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.ExecContext(context.Background(),
+		"DROP TABLE IF EXISTS schema_migrations, sequa_schema_history, lib_widgets CASCADE"); err != nil {
+		t.Fatalf("reset drop: %v", err)
+	}
+}
 
 func TestLibraryUpVersion(t *testing.T) {
 	if testing.Short() {
@@ -20,20 +37,12 @@ func TestLibraryUpVersion(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set SEQUA_TEST_DATABASE_URL to run library integration tests")
 	}
+	resetSchema(t, dsn)
+
 	ctx := context.Background()
 	m, err := sequa.New(dsn, migrationsFS, "testdata/migrations")
 	if err != nil {
 		t.Fatal(err)
-	}
-	// reset
-	for {
-		if err := m.Down(ctx); err != nil {
-			t.Fatalf("down: %v", err)
-		}
-		v, _, _ := m.Version(ctx)
-		if v == 0 {
-			break
-		}
 	}
 	if err := m.Up(ctx); err != nil {
 		t.Fatalf("up: %v", err)

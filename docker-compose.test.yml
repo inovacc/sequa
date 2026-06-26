@@ -21,4 +21,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["go", "test", "./..."]
+    # -p 1 serializes package test binaries so the integration tests (which
+    # share one Postgres) don't race on CREATE TABLE / schema_migrations.
+    command: ["go", "test", "-p", "1", "./..."]

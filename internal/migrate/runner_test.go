@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	dbpkg "github.com/inovacc/sequa/internal/db"
 )
 
 // writeMigration creates an up/down pair in dir.
@@ -30,8 +32,26 @@ func testDSN(t *testing.T) string {
 	return dsn
 }
 
+// resetSchema drops the migration-tracking tables and this test's tables so the
+// test starts from a clean database. Integration tests share one Postgres, so
+// each must isolate itself rather than rely on leftover state.
+func resetSchema(t *testing.T, dsn string) {
+	t.Helper()
+	db, err := dbpkg.Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("reset open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.ExecContext(context.Background(),
+		"DROP TABLE IF EXISTS schema_migrations, sequa_schema_history, widgets CASCADE"); err != nil {
+		t.Fatalf("reset drop: %v", err)
+	}
+}
+
 func TestRunnerUpStatusDownVersion(t *testing.T) {
 	dsn := testDSN(t)
+	resetSchema(t, dsn)
+
 	dir := t.TempDir()
 	writeMigration(t, dir, "00001_create_widgets",
 		"CREATE TABLE widgets (id INT PRIMARY KEY);",
@@ -44,17 +64,6 @@ func TestRunnerUpStatusDownVersion(t *testing.T) {
 	r, err := NewRunner(dsn, os.DirFS(dir), ".")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	// Clean slate: roll everything down first (ignore result), then up.
-	for {
-		if _, err := r.Down(ctx); err != nil {
-			t.Fatalf("predown: %v", err)
-		}
-		v, _, _ := r.Version(ctx)
-		if v == 0 {
-			break
-		}
 	}
 
 	applied, err := r.Up(ctx)
