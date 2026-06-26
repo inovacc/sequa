@@ -23,6 +23,7 @@
 - **Commits:** conventional commits, no AI attribution.
 - **Environment (this dev machine):** an Application Control policy blocks executing freshly-built binaries — `go run` and running `sequa.exe` fail. Host verification therefore uses `go build ./...` (compile) + `go test -short ./...` (both work). The **full suite incl. integration tests runs in Docker** via `task test:docker` (a Postgres service + a Linux Go test container); that container run is the integration proof. Never verify a task with `go run` on the host.
 - **Writer returns:** every `fmt.Fprint`/`Fprintln`/`Fprintf` to `os.Stdout`/`os.Stderr` mutes its return value — write `_, _ = fmt.Fprintln(w, …)` — per project Go style (golangci-lint's errcheck flags bare calls). Where a code block below shows a bare `fmt.Fprint*`, emit the muted form.
+- **Dependencies:** any task that adds a Go dependency MUST stage and commit `go.mod` **and** `go.sum` alongside its code (`git add go.mod go.sum …`). A commit that imports a new module without its go.mod/go.sum entries does not build standalone.
 
 ---
 
@@ -1477,9 +1478,10 @@ Run: `go build ./... && go vet ./... && go test -short ./...`
 Expected: all PASS (integration tests skipped under `-short`).
 
 ```bash
-git add internal/migrate/runner.go internal/migrate/runner_test.go internal/cli/migrate_up.go internal/cli/migrate_down.go internal/cli/migrate_status.go internal/cli/migrate_version.go internal/cli/migrate.go
+git add internal/migrate/runner.go internal/migrate/runner_test.go internal/cli/migrate_up.go internal/cli/migrate_down.go internal/cli/migrate_status.go internal/cli/migrate_version.go internal/cli/migrate.go go.mod go.sum
 git commit -m "feat: add migrate runner (up/down/status/version) with applied-at history"
 ```
+(This task adds the golang-migrate dependency — `go.mod`/`go.sum` MUST be staged in the same commit.)
 
 ---
 
