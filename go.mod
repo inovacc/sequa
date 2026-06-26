@@ -1,8 +1,9 @@
 module github.com/inovacc/sequa
 
-go 1.23
+go 1.24.0
 
 require (
+	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/lib/pq v1.12.3
 	github.com/spf13/cobra v1.8.1
 )

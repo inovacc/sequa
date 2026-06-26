@@ -7,6 +7,12 @@ func newMigrateCmd() *cobra.Command {
 		Use:   "migrate",
 		Short: "Manage database migrations",
 	}
-	cmd.AddCommand(newMigrateCreateCmd())
+	cmd.AddCommand(
+		newMigrateCreateCmd(),
+		newMigrateUpCmd(),
+		newMigrateDownCmd(),
+		newMigrateStatusCmd(),
+		newMigrateVersionCmd(),
+	)
 	return cmd
 }
