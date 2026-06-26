@@ -142,7 +142,10 @@ func ensureHistory(ctx context.Context, db *sql.DB) error {
 }
 
 func stop(err error) bool {
-	if errors.Is(err, migratelib.ErrNoChange) {
+	// The iofs source signals "no more migrations" with fs.ErrNotExist when
+	// Steps reads past the last migration; ErrNoChange / ErrShortLimit are the
+	// other terminators depending on source/driver. Treat all three as "done".
+	if errors.Is(err, migratelib.ErrNoChange) || errors.Is(err, fs.ErrNotExist) {
 		return true
 	}
 	var short migratelib.ErrShortLimit
