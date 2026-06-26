@@ -1,0 +1,28 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build all packages
+    cmds:
+      - go build ./...
+  test:
+    desc: Run short unit tests
+    cmds:
+      - go test -short ./...
+  test:full:
+    desc: Run the full test suite (needs SEQUA_TEST_DATABASE_URL)
+    cmds:
+      - go test ./...
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+  run:
+    desc: Run the sequa CLI (note: blocked on hosts with Application Control)
+    cmds:
+      - go run ./cmd/sequa {{.CLI_ARGS}}
+  test:docker:
+    desc: Run the FULL suite (incl. integration) in Docker against real Postgres
+    cmds:
+      - docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test
+      - docker compose -f docker-compose.test.yml down -v
