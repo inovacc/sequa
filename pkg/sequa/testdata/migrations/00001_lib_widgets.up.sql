@@ -1,0 +1,1 @@
+CREATE TABLE lib_widgets (id INT PRIMARY KEY);
