@@ -10,12 +10,15 @@ services:
       timeout: 3s
       retries: 15
   test:
-    image: golang:1.26-alpine
+    # debian-based golang ships gcc, required for cgo (pg_query_go / libpg_query).
+    image: golang:1.26
     working_dir: /app
     volumes:
       - .:/app
+      - sequa-gocache:/root/.cache/go-build
+      - sequa-gomod:/go/pkg/mod
     environment:
-      CGO_ENABLED: "0"
+      CGO_ENABLED: "1"
       GOFLAGS: "-count=1"
       SEQUA_TEST_DATABASE_URL: "postgres://postgres:sequa@postgres:5432/sequa_test?sslmode=disable"
     depends_on:
@@ -24,3 +27,7 @@ services:
     # -p 1 serializes package test binaries so the integration tests (which
     # share one Postgres) don't race on CREATE TABLE / schema_migrations.
     command: ["go", "test", "-p", "1", "./..."]
+
+volumes:
+  sequa-gocache:
+  sequa-gomod:
