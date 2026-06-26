@@ -1,7 +1,9 @@
 package migrate
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,12 +43,12 @@ func NextSequential(dir string) (string, error) {
 func maxVersion(dir string) (uint64, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return 0, nil
 		}
 		return 0, fmt.Errorf("read dir: %w", err)
 	}
-	var max uint64
+	var maxV uint64
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".up.sql") {
 			continue
@@ -60,11 +62,11 @@ func maxVersion(dir string) (uint64, error) {
 		if err != nil {
 			continue
 		}
-		if v > max {
-			max = v
+		if v > maxV {
+			maxV = v
 		}
 	}
-	return max, nil
+	return maxV, nil
 }
 
 // Create writes <version>_<slug>.up.sql and .down.sql in dir, returning [up, down].
