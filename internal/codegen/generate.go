@@ -44,8 +44,64 @@ func Generate(cfg *Config, root string) ([]GeneratedFile, error) {
 			Path:    filepath.Join(root, blk.Gen.Go.Out, "models.go"),
 			Content: models,
 		})
+
+		if strings.TrimSpace(blk.Queries) != "" {
+			content, err := readQueries(filepath.Join(root, blk.Queries))
+			if err != nil {
+				return nil, err
+			}
+			queries, err := AnalyzeQueries(cat, content)
+			if err != nil {
+				return nil, fmt.Errorf("sql[%d] queries: %w", i, err)
+			}
+			qsrc, err := RenderQueries(cat, queries, blk.Gen.Go.Package)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, GeneratedFile{
+				Path:    filepath.Join(root, blk.Gen.Go.Out, "queries.go"),
+				Content: qsrc,
+			})
+		}
 	}
 	return files, nil
+}
+
+// readQueries reads a single .sql file, or concatenates every *.sql file in a
+// directory (sorted by name).
+func readQueries(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("read queries %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("read queries %s: %w", path, err)
+		}
+		return string(data), nil
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return "", fmt.Errorf("read queries dir %s: %w", path, err)
+	}
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, n := range names {
+		data, err := os.ReadFile(filepath.Join(path, n))
+		if err != nil {
+			return "", err
+		}
+		b.Write(data)
+		b.WriteString("\n")
+	}
+	return b.String(), nil
 }
 
 // readUpMigrations reads every *.up.sql file from dir in ascending version order.
