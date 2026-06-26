@@ -22,6 +22,7 @@
 - **Tests:** table-driven; any test needing a real database calls `t.Skip()` under `testing.Short()` **and** when `SEQUA_TEST_DATABASE_URL` is unset. Default `task test` runs `-short`; `task test:full` runs all.
 - **Commits:** conventional commits, no AI attribution.
 - **Environment (this dev machine):** an Application Control policy blocks executing freshly-built binaries — `go run` and running `sequa.exe` fail. Host verification therefore uses `go build ./...` (compile) + `go test -short ./...` (both work). The **full suite incl. integration tests runs in Docker** via `task test:docker` (a Postgres service + a Linux Go test container); that container run is the integration proof. Never verify a task with `go run` on the host.
+- **Writer returns:** every `fmt.Fprint`/`Fprintln`/`Fprintf` to `os.Stdout`/`os.Stderr` mutes its return value — write `_, _ = fmt.Fprintln(w, …)` — per project Go style (golangci-lint's errcheck flags bare calls). Where a code block below shows a bare `fmt.Fprint*`, emit the muted form.
 
 ---
 
