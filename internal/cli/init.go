@@ -21,7 +21,7 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("create %s: %w", dir, err)
 			}
 			abs, _ := filepath.Abs(dir)
-			fmt.Fprintln(os.Stdout, "initialized migrations directory:", abs)
+			_, _ = fmt.Fprintln(os.Stdout, "initialized migrations directory:", abs)
 			return nil
 		},
 	}
