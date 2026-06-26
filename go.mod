@@ -2,7 +2,10 @@ module github.com/inovacc/sequa
 
 go 1.23
 
-require github.com/spf13/cobra v1.8.1
+require (
+	github.com/lib/pq v1.12.3
+	github.com/spf13/cobra v1.8.1
+)
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
