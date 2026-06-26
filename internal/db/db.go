@@ -17,7 +17,12 @@ func DriverName(dsn string) (string, error) {
 	case strings.HasPrefix(dsn, "postgres://"), strings.HasPrefix(dsn, "postgresql://"):
 		return "postgres", nil
 	default:
-		return "", fmt.Errorf("unsupported or missing DSN scheme: %q", dsn)
+		// Report only the scheme, never the raw DSN (it may carry credentials).
+		scheme := "(none)"
+		if i := strings.Index(dsn, "://"); i > 0 {
+			scheme = dsn[:i]
+		}
+		return "", fmt.Errorf("unsupported or missing DSN scheme %q: only postgres:// is supported in M1", scheme)
 	}
 }
 

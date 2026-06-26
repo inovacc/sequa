@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +26,16 @@ func TestDriverName(t *testing.T) {
 	}
 }
 
+func TestDriverNameRedactsCredentials(t *testing.T) {
+	_, err := DriverName("mysql://user:supersecret@localhost/db")
+	if err == nil {
+		t.Fatal("expected error for unsupported scheme")
+	}
+	if strings.Contains(err.Error(), "supersecret") {
+		t.Errorf("error leaked DSN credentials: %v", err)
+	}
+}
+
 func TestOpenIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping DB integration test in -short mode")
@@ -38,7 +49,7 @@ func TestOpenIntegration(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
-	if err := conn.Ping(); err != nil {
+	if err := conn.PingContext(context.Background()); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
 }

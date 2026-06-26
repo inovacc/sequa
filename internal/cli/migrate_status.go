@@ -30,7 +30,7 @@ func newMigrateStatusCmd() *cobra.Command {
 			for _, s := range rows {
 				when := "Pending"
 				switch {
-				case s.AppliedAt != nil:
+				case s.Applied && s.AppliedAt != nil:
 					when = s.AppliedAt.Format("Mon Jan _2 15:04:05 2006")
 				case s.Applied:
 					when = "applied"
