@@ -21,13 +21,14 @@
 - **Errors:** wrap with `%w`; compare with `errors.Is`/`errors.As`.
 - **Tests:** table-driven; any test needing a real database calls `t.Skip()` under `testing.Short()` **and** when `SEQUA_TEST_DATABASE_URL` is unset. Default `task test` runs `-short`; `task test:full` runs all.
 - **Commits:** conventional commits, no AI attribution.
+- **Environment (this dev machine):** an Application Control policy blocks executing freshly-built binaries — `go run` and running `sequa.exe` fail. Host verification therefore uses `go build ./...` (compile) + `go test -short ./...` (both work). The **full suite incl. integration tests runs in Docker** via `task test:docker` (a Postgres service + a Linux Go test container); that container run is the integration proof. Never verify a task with `go run` on the host.
 
 ---
 
 ### Task 1: Project scaffold + CLI skeleton
 
 **Files:**
-- Create: `go.mod`, `cmd/sequa/main.go`, `internal/cli/root.go`, `internal/cli/migrate.go`, `internal/cli/generate.go`, `internal/cli/query.go`, `internal/cli/init.go`, `internal/cli/root_test.go`, `Taskfile.yml`, `.gitignore`, `LICENSE`
+- Create: `go.mod`, `cmd/sequa/main.go`, `internal/cli/root.go`, `internal/cli/migrate.go`, `internal/cli/generate.go`, `internal/cli/query.go`, `internal/cli/init.go`, `internal/cli/root_test.go`, `Taskfile.yml`, `docker-compose.test.yml`, `.gitignore`, `LICENSE`
 - Test: `internal/cli/root_test.go`
 
 **Interfaces:**
@@ -262,9 +263,43 @@ tasks:
     cmds:
       - golangci-lint run ./...
   run:
-    desc: Run the sequa CLI
+    desc: Run the sequa CLI (note: blocked on hosts with Application Control)
     cmds:
       - go run ./cmd/sequa {{.CLI_ARGS}}
+  test:docker:
+    desc: Run the FULL suite (incl. integration) in Docker against real Postgres
+    cmds:
+      - docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test
+      - docker compose -f docker-compose.test.yml down -v
+```
+
+- [ ] **Step 9b: Write `docker-compose.test.yml`**
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: sequa
+      POSTGRES_DB: sequa_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sequa_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  test:
+    image: golang:1.26-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      CGO_ENABLED: "0"
+      GOFLAGS: "-count=1"
+      SEQUA_TEST_DATABASE_URL: "postgres://postgres:sequa@postgres:5432/sequa_test?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["go", "test", "./..."]
 ```
 
 - [ ] **Step 10: Write `.gitignore`**
@@ -297,10 +332,10 @@ reference/
 Run: `go mod tidy && go test ./internal/cli/ -run TestRootHasCoreSubcommands`
 Expected: PASS.
 
-- [ ] **Step 13: Smoke-build**
+- [ ] **Step 13: Smoke-build** (compile only — `go run` is blocked by this machine's Application Control policy)
 
-Run: `go build ./... && go run ./cmd/sequa --help`
-Expected: build OK; help lists `migrate`, `generate`, `query`, `init`.
+Run: `go build ./...`
+Expected: build succeeds. (Subcommand wiring is verified by `TestRootHasCoreSubcommands`, not by executing the binary.)
 
 - [ ] **Step 14: Commit**
 
@@ -679,10 +714,10 @@ func newMigrateCmd() *cobra.Command {
 }
 ```
 
-- [ ] **Step 7: Verify build + manual smoke**
+- [ ] **Step 7: Verify build** (`go run` is blocked on this host; `create` behavior is covered by `TestCreate*`)
 
-Run: `go build ./... && go run ./cmd/sequa migrate create add_users --dir ./_smoke && ls ./_smoke && rm -rf ./_smoke`
-Expected: two files `*_add_users.up.sql` / `.down.sql` printed and listed.
+Run: `go build ./...`
+Expected: build succeeds.
 
 - [ ] **Step 8: Commit**
 
@@ -1593,9 +1628,9 @@ git commit -m "feat: add embeddable pkg/sequa self-migration library"
 - [ ] `go build ./...` — PASS
 - [ ] `go vet ./...` — PASS
 - [ ] `golangci-lint run ./...` — clean (install if absent: `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`)
-- [ ] `go test -short ./...` — PASS (unit tests; integration skipped)
-- [ ] With a throwaway Postgres + `SEQUA_TEST_DATABASE_URL`: `go test ./...` — PASS (integration included)
-- [ ] Manual end-to-end:
+- [ ] `go test -short ./...` — PASS (host unit tests; integration skipped)
+- [ ] **`task test:docker`** — PASS: the full suite **including integration tests** runs in Docker against a real Postgres. **This is the integration proof** (the host cannot run it — executing built binaries is blocked by Application Control).
+- [ ] Manual end-to-end against the **real `sequa` binary** can only run on a machine *without* the Application Control restriction (this box blocks executing `sequa.exe`). The equivalent behavior is proven by the Docker integration suite above. On an unrestricted machine:
   ```
   go run ./cmd/sequa init
   go run ./cmd/sequa migrate create create_users -s

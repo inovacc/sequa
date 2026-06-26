@@ -15,4 +15,5 @@ coverage/
 # local / ephemeral
 reference/
 .scripts/
+.superpowers/
 .env
