@@ -79,7 +79,7 @@ func TestAnalyzeUnsupportedAggregate(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := map[string]string{
-		"unknown aggregate function": "-- name: S :one\nSELECT stddev(x) AS s FROM t;",
+		"unknown aggregate function":  "-- name: S :one\nSELECT stddev(x) AS s FROM t;",
 		"sum of a non-numeric column": "-- name: S :one\nSELECT sum(label) AS s FROM t;",
 	}
 	for name, sql := range cases {
