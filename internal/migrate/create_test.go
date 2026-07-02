@@ -10,8 +10,8 @@ import (
 func TestSlugify(t *testing.T) {
 	cases := map[string]string{
 		"Add Some Column": "add_some_column",
-		"  trim--me  ":     "trim_me",
-		"users":            "users",
+		"  trim--me  ":    "trim_me",
+		"users":           "users",
 	}
 	for in, want := range cases {
 		if got := Slugify(in); got != want {

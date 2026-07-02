@@ -4,12 +4,12 @@ import "testing"
 
 func TestGoName(t *testing.T) {
 	cases := map[string]string{
-		"task_id":     "TaskID",  // initialism upper-cased
-		"user_id":     "UserID",  // initialism upper-cased
+		"task_id":     "TaskID", // initialism upper-cased
+		"user_id":     "UserID", // initialism upper-cased
 		"created_at":  "CreatedAt",
-		"api_url":     "APIURL",  // consecutive initialisms
+		"api_url":     "APIURL", // consecutive initialisms
 		"name":        "Name",
-		"_user_id":    "UserID",  // leading underscore skipped
+		"_user_id":    "UserID", // leading underscore skipped
 		"http_status": "HTTPStatus",
 	}
 	for in, want := range cases {
