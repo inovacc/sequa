@@ -6,6 +6,7 @@ package codegen
 
 import (
 	"fmt"
+	"slices"
 
 	pgquery "github.com/pganalyze/pg_query_go/v5"
 )
@@ -129,13 +130,7 @@ func (c *Catalog) applyAlter(s *pgquery.AlterTableStmt) {
 }
 
 func (t *Table) dropColumn(name string) {
-	out := t.Columns[:0]
-	for _, col := range t.Columns {
-		if col.Name != name {
-			out = append(out, col)
-		}
-	}
-	t.Columns = out
+	t.Columns = slices.DeleteFunc(t.Columns, func(c Column) bool { return c.Name == name })
 }
 
 func (c *Catalog) applyDrop(s *pgquery.DropStmt) {
@@ -151,13 +146,7 @@ func (c *Catalog) applyDrop(s *pgquery.DropStmt) {
 			continue
 		}
 		delete(c.byName, name)
-		out := c.Tables[:0]
-		for _, t := range c.Tables {
-			if t.Name != name {
-				out = append(out, t)
-			}
-		}
-		c.Tables = out
+		c.Tables = slices.DeleteFunc(c.Tables, func(t *Table) bool { return t.Name == name })
 	}
 }
 

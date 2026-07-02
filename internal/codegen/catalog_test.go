@@ -56,3 +56,31 @@ func TestBuildCatalog(t *testing.T) {
 		t.Errorf("tags should be an array: %+v", c)
 	}
 }
+
+func TestBuildCatalogDropTable(t *testing.T) {
+	cat, err := BuildCatalog([]string{
+		`CREATE TABLE keep (id BIGINT PRIMARY KEY);`,
+		`CREATE TABLE gone (id BIGINT PRIMARY KEY);`,
+		`DROP TABLE gone;`,
+	})
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	if cat.Table("gone") != nil {
+		t.Error("dropped table 'gone' still resolvable by name")
+	}
+	if cat.Table("keep") == nil {
+		t.Error("table 'keep' missing after dropping a sibling")
+	}
+	if len(cat.Tables) != 1 || cat.Tables[0].Name != "keep" {
+		t.Errorf("Tables = %v, want exactly [keep]", tableNames(cat.Tables))
+	}
+}
+
+func tableNames(tables []*Table) []string {
+	out := make([]string, len(tables))
+	for i, t := range tables {
+		out[i] = t.Name
+	}
+	return out
+}
