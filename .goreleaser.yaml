@@ -16,9 +16,6 @@ builds:
     binary: sequa
     env:
       - CGO_ENABLED=1
-      # libpg_query (pg_query_go) declares strchrnul itself; zig's glibc headers
-      # already declare it. Tell the port code it exists so it skips its copy.
-      - CGO_CFLAGS=-DHAVE_STRCHRNUL
     flags:
       - -trimpath
     ldflags:
@@ -33,16 +30,21 @@ builds:
       - goos: windows
         goarch: arm64
     overrides:
+      # HAVE_STRCHRNUL only on glibc targets: glibc declares strchrnul (so
+      # libpg_query must skip its conflicting static copy), but mingw/Windows
+      # lacks it, so Windows must keep libpg_query's copy.
       - goos: linux
         goarch: amd64
         env:
           - CC=zig cc -target x86_64-linux-gnu
           - CXX=zig c++ -target x86_64-linux-gnu
+          - CGO_CFLAGS=-DHAVE_STRCHRNUL
       - goos: linux
         goarch: arm64
         env:
           - CC=zig cc -target aarch64-linux-gnu
           - CXX=zig c++ -target aarch64-linux-gnu
+          - CGO_CFLAGS=-DHAVE_STRCHRNUL
       - goos: windows
         goarch: amd64
         env:
