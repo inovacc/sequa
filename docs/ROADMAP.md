@@ -1,5 +1,5 @@
 # Roadmap
-<!-- rev:002 -->
+<!-- rev:003 -->
 
 Milestone roadmap for **sequa** — one Go tool to migrate, query, and generate
 type-safe Go from a single SQL schema.
@@ -18,9 +18,9 @@ type-safe Go from a single SQL schema.
 
 | Horizon | Milestone | State |
 |---------|-----------|-------|
-| **Now** (shipped) | M1 Spine + migrate, M2 query, M3 generate (Postgres) | ✅ done |
-| **Next** | M4 `--verify` (ephemeral-DB replay + introspect + drift diff) | ⬜ planned |
-| **Later** | M5 engines 2 & 3 (MySQL + SQLite codegen) | ⬜ planned |
+| **Now** (shipped) | M1 Spine + migrate, M2 query, M3 generate (Postgres), M4 `verify` (introspect + drift diff) | ✅ done |
+| **Next** | M5 engines 2 & 3 (MySQL + SQLite codegen) — see [specs/M5-engines.md](./specs/M5-engines.md) | ⬜ planned |
+| **Later** | Ephemeral-DB auto-replay for `verify`; broaden `generate` (JOINs, sum/avg) | ⬜ backlog |
 
 ## Milestones
 
@@ -29,8 +29,8 @@ type-safe Go from a single SQL schema.
 | M1 — Spine + migrate | Shared config/db spine plus a usable migration tool | ✅ shipped |
 | M2 — query | Ad-hoc SQL client + REPL | ✅ shipped |
 | M3 — generate (Postgres) | Type-safe Go codegen from Postgres migrations | ✅ shipped |
-| M4 — `--verify` | Live-schema verification against static parse | ⬜ planned (next) |
-| M5 — engines 2 & 3 | MySQL + SQLite codegen behind `Engine` | ⬜ planned |
+| M4 — `verify` | Live-schema verification against static parse | ✅ shipped (core) |
+| M5 — engines 2 & 3 | MySQL + SQLite codegen behind `Engine` | ⬜ planned ([spec](./specs/M5-engines.md)) |
 
 ### M1 — Spine + migrate ✅
 
@@ -68,29 +68,31 @@ migration tool on top of it.
 
 **Status:** shipped.
 
-### M4 — `--verify` ⬜
+### M4 — `verify` ✅ (core)
 
 **Goal:** guarantee the statically parsed catalog matches the schema the
 migrations actually produce; doubles as a migration smoke test.
 
-**Planned to deliver:**
-- Ephemeral database spun up on demand.
-- Replay of the migration up chain.
-- Introspection of the real catalog.
-- Drift diff between the introspected catalog and the static parse; fail on
-  drift.
+**Delivers:**
+- `sequa verify`: parse the up-migrations into a catalog, introspect the live
+  database via `pg_catalog`, and diff them.
+- Drift reporting for missing/extra tables and columns, type mismatches, and
+  nullability mismatches; non-zero exit on any drift.
 
-**Status:** planned — **not yet built.**
+**Status:** shipped. `verify` runs against the DSN you point it at. **Follow-up:**
+optional ephemeral-DB auto-replay (spin up a throwaway database, apply the up
+chain, verify) — tracked in the backlog.
 
 ### M5 — engines 2 & 3 ⬜
 
 **Goal:** extend codegen beyond Postgres.
 
 **Planned to deliver:**
-- MySQL codegen behind the `Engine` interface.
-- SQLite codegen behind the `Engine` interface.
+- MySQL codegen behind an `Engine` interface.
+- SQLite codegen behind the same interface.
 
-**Status:** planned — **not yet built.**
+**Status:** planned — design in [specs/M5-engines.md](./specs/M5-engines.md)
+(engine-boundary extraction first, then MySQL, then SQLite). **Not yet built.**
 
 ## Related docs
 

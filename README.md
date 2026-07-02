@@ -1,5 +1,5 @@
 # sequa
-<!-- rev:001 -->
+<!-- rev:002 -->
 
 [![CI](https://github.com/inovacc/sequa/actions/workflows/ci.yml/badge.svg)](https://github.com/inovacc/sequa/actions/workflows/ci.yml)
 
@@ -23,6 +23,7 @@ added without reworking the design.
 | `migrate` | [golang-migrate](https://github.com/golang-migrate/migrate) | PostgreSQL (`postgres://`, `postgresql://`) | Engine-agnostic by design; only the Postgres driver is wired up today |
 | `query` | [xo/usql](https://github.com/xo/usql) | PostgreSQL | usql supports many engines; only its Postgres driver is registered today |
 | `generate` | [pg_query_go](https://github.com/pganalyze/pg_query_go) (`libpg_query`) | PostgreSQL only | MySQL + SQLite planned (M5) |
+| `verify` | `pg_catalog` introspection | PostgreSQL only | Drift check: live schema vs migrations |
 
 Codegen is Postgres-only by nature — it uses PostgreSQL's own parser. `migrate`
 and `query` are Postgres-only in the current build even though their
@@ -102,6 +103,10 @@ DELETE FROM users WHERE id = $1;
 | `:many` | `([]Row, error)` via `QueryContext` |
 | `:exec` | `error` via `ExecContext` |
 
+Result lists may be plain columns, `*`, or the `count`/`min`/`max` aggregates
+(`count` → non-null `int64`; `min`/`max` → the column's type, nullable). JOINs
+and `sum`/`avg` are not supported yet — see ISS-2 in [docs/ISSUES.md](docs/ISSUES.md).
+
 Then run:
 
 ```
@@ -126,6 +131,19 @@ sequa query --dsn "$DATABASE_URL" -c "SELECT * FROM tasks;"       # one-shot tab
 
 The DSN may be a positional argument, `--dsn`, or `$DATABASE_URL`. With `-c`
 (`--command`) it runs one statement and exits; otherwise it opens the REPL.
+
+### verify
+
+Check that the live database schema matches what your migrations define — a
+drift check and migration smoke test:
+
+```
+sequa verify --dsn "$DATABASE_URL"    # prints OK, or lists drift and exits non-zero
+```
+
+It parses the up-migrations into a catalog, introspects the live schema via
+`pg_catalog`, and reports missing/extra tables and columns plus type and
+nullability mismatches.
 
 ## Embeddable library — `pkg/sequa`
 
@@ -210,7 +228,7 @@ integration tests, which share one Postgres, don't race on schema creation.
 | **M1** | Spine + `migrate` — config autodetect, DB connection, golang-migrate runner (up/down/status/version), library API | Done |
 | **M2** | `query` — embedded usql REPL and one-shot command | Done |
 | **M3** | `generate` (Postgres) — models + typed query methods from the migration-defined schema | Done |
-| **M4** | `--verify` — ephemeral-DB replay + introspection + drift diff | Planned |
+| **M4** | `verify` — introspection + drift diff (live schema vs migrations) | Done |
 | **M5** | Engines 2 & 3 — MySQL + SQLite codegen behind an `Engine` abstraction | Planned |
 
 ## License
