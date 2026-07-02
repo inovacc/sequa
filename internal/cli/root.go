@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&flagDir, "dir", "", "migrations directory (autodetected if empty)")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "verbose (debug) logging")
 
-	root.AddCommand(newMigrateCmd(), newGenerateCmd(), newQueryCmd(), newInitCmd())
+	root.AddCommand(newMigrateCmd(), newGenerateCmd(), newQueryCmd(), newInitCmd(), newVerifyCmd())
 	return root
 }
 

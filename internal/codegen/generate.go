@@ -138,3 +138,13 @@ func readUpMigrations(dir string) ([]string, error) {
 	}
 	return out, nil
 }
+
+// CatalogFromMigrations builds the schema catalog by parsing every up-migration
+// in dir (ascending version order) — the static half of `sequa verify`.
+func CatalogFromMigrations(dir string) (*Catalog, error) {
+	migrations, err := readUpMigrations(dir)
+	if err != nil {
+		return nil, err
+	}
+	return BuildCatalog(migrations)
+}
