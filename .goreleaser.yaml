@@ -1,0 +1,82 @@
+# GoReleaser v2 config for sequa.
+# sequa's `generate` uses pg_query_go (libpg_query, cgo), so releases
+# cross-compile with zig as the C toolchain. macOS builds need a native runner
+# or the macOS SDK and are deliberately out of scope here (see BACKLOG).
+version: 2
+
+project_name: sequa
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: sequa
+    main: ./cmd/sequa
+    binary: sequa
+    env:
+      - CGO_ENABLED=1
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    overrides:
+      # HAVE_STRCHRNUL only on glibc targets: glibc declares strchrnul (so
+      # libpg_query must skip its conflicting static copy), but mingw/Windows
+      # lacks it, so Windows must keep libpg_query's copy.
+      - goos: linux
+        goarch: amd64
+        env:
+          - CC=zig cc -target x86_64-linux-gnu
+          - CXX=zig c++ -target x86_64-linux-gnu
+          - CGO_CFLAGS=-DHAVE_STRCHRNUL
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=zig cc -target aarch64-linux-gnu
+          - CXX=zig c++ -target aarch64-linux-gnu
+          - CGO_CFLAGS=-DHAVE_STRCHRNUL
+      - goos: windows
+        goarch: amd64
+        env:
+          - CC=zig cc -target x86_64-windows-gnu
+          - CXX=zig c++ -target x86_64-windows-gnu
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - '^build:'
+      - 'Merge pull request'
+
+release:
+  github:
+    owner: inovacc
+    name: sequa

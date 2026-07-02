@@ -15,10 +15,15 @@ var (
 	flagVerbose bool
 )
 
+// Version is the build version, shown by `sequa --version`. main() sets it from
+// its own ldflags-injected value.
+var Version = "dev"
+
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "sequa",
 		Short:         "SQL migration, query, and codegen toolkit",
+		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
