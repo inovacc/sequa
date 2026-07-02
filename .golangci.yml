@@ -1,0 +1,64 @@
+# golangci-lint v2 configuration for sequa.
+# Schema: https://golangci-lint.run/usage/configuration/ (version "2").
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # "standard" = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    - gocognit        # cognitive complexity budget (Sonar)
+    - gocyclo         # cyclomatic backup gate
+    - revive          # golint successor
+    - gosec           # security checks
+    - prealloc        # slices that can be preallocated
+    - errorlint       # correct errors.Is/As and %w usage
+    - nilerr          # returning nil after a non-nil error
+    - contextcheck    # context propagation
+  settings:
+    gocognit:
+      # Target is 15 (see docs/BACKLOG.md — ratchet Generate/analyzeQuery/
+      # RenderQueries/Up down to 15). Set at the current worst so the gate
+      # catches regressions above today's baseline.
+      min-complexity: 20
+    gocyclo:
+      min-complexity: 20
+    revive:
+      rules:
+        # Cobra RunE closures and template helpers legitimately take unused params.
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    generated: lax
+    rules:
+      # Test files may use weaker crypto/permissions and be more complex.
+      - path: _test\.go
+        linters:
+          - gosec
+          - gocognit
+          - gocyclo
+      # G304: sequa's purpose is to read user-specified config/schema/query files.
+      - linters: [gosec]
+        text: "G304"
+      # G301/G306: migration and codegen output dirs (0o755) and files (0o644)
+      # use conventional perms so generated code is readable by the toolchain.
+      - linters: [gosec]
+        text: "G301"
+      - linters: [gosec]
+        text: "G306"
+      # G115: schema version numbers convert between uint and int64; values are
+      # small, monotonic, and controlled by the migration filenames.
+      - path: internal/migrate/
+        linters: [gosec]
+        text: "G115"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/inovacc/sequa

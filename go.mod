@@ -1,6 +1,6 @@
 module github.com/inovacc/sequa
 
-go 1.26.1
+go 1.26.4
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.18.3
