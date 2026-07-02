@@ -46,6 +46,40 @@ func TestCreateTimestamp(t *testing.T) {
 	}
 }
 
+func TestParseFilename(t *testing.T) {
+	tests := []struct {
+		name        string
+		base        string
+		wantVersion uint64
+		wantName    string
+		wantErr     bool
+	}{
+		{name: "zero-padded sequential", base: "00001_add_users.up.sql", wantVersion: 1, wantName: "add_users"},
+		{name: "timestamp version", base: "20170506082420_add_col.up.sql", wantVersion: 20170506082420, wantName: "add_col"},
+		{name: "name keeps later underscores", base: "5_a_b_c.up.sql", wantVersion: 5, wantName: "a_b_c"},
+		{name: "no underscore", base: "nounderscore.up.sql", wantErr: true},
+		{name: "leading underscore is empty version", base: "_leading.up.sql", wantErr: true},
+		{name: "non-numeric version", base: "abc_name.up.sql", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, name, err := ParseFilename(tt.base)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ParseFilename(%q) = (%d, %q, nil), want error", tt.base, v, name)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseFilename(%q) unexpected error: %v", tt.base, err)
+			}
+			if v != tt.wantVersion || name != tt.wantName {
+				t.Errorf("ParseFilename(%q) = (%d, %q), want (%d, %q)", tt.base, v, name, tt.wantVersion, tt.wantName)
+			}
+		})
+	}
+}
+
 func TestCreateSequential(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "00001_first.up.sql"), []byte("x"), 0o644); err != nil {

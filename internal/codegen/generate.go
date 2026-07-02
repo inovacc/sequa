@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
+
+	"github.com/inovacc/sequa/internal/migrate"
 )
 
 // GeneratedFile is a file the generator produced; the caller writes it to disk.
@@ -119,7 +120,11 @@ func readUpMigrations(dir string) ([]string, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".up.sql") {
 			continue
 		}
-		migs = append(migs, mig{version: leadingVersion(e.Name()), path: filepath.Join(dir, e.Name())})
+		v, _, err := migrate.ParseFilename(e.Name())
+		if err != nil {
+			return nil, fmt.Errorf("schema dir %s: %w", dir, err)
+		}
+		migs = append(migs, mig{version: v, path: filepath.Join(dir, e.Name())})
 	}
 	sort.Slice(migs, func(i, j int) bool { return migs[i].version < migs[j].version })
 
@@ -132,12 +137,4 @@ func readUpMigrations(dir string) ([]string, error) {
 		out = append(out, string(data))
 	}
 	return out, nil
-}
-
-func leadingVersion(name string) uint64 {
-	if i := strings.IndexByte(name, '_'); i > 0 {
-		v, _ := strconv.ParseUint(name[:i], 10, 64)
-		return v
-	}
-	return 0
 }

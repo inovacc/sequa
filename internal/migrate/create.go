@@ -12,6 +12,25 @@ import (
 	"time"
 )
 
+// ParseFilename splits a migration base name of the form
+// "<version>_<name>.up.sql" into its numeric version and name. It is the single
+// source of truth for the filename format that Create writes and that both the
+// runner and the codegen schema builder read back. A base name without a
+// numeric leading version returns an error rather than a zero version, so
+// malformed files are rejected instead of silently sorting first.
+func ParseFilename(base string) (uint64, string, error) {
+	trimmed := strings.TrimSuffix(base, ".up.sql")
+	version, name, ok := strings.Cut(trimmed, "_")
+	if !ok || version == "" {
+		return 0, "", fmt.Errorf("bad migration filename %q", base)
+	}
+	v, err := strconv.ParseUint(version, 10, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("bad version in %q: %w", base, err)
+	}
+	return v, name, nil
+}
+
 const (
 	upTemplate   = "-- Migration: %s (up)\n-- Write the forward SQL here.\n"
 	downTemplate = "-- Migration: %s (down)\n-- Write the rollback SQL here.\n"
@@ -53,12 +72,7 @@ func maxVersion(dir string) (uint64, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".up.sql") {
 			continue
 		}
-		trimmed := strings.TrimSuffix(e.Name(), ".up.sql")
-		idx := strings.IndexByte(trimmed, '_')
-		if idx <= 0 {
-			continue
-		}
-		v, err := strconv.ParseUint(trimmed[:idx], 10, 64)
+		v, _, err := ParseFilename(e.Name())
 		if err != nil {
 			continue
 		}
