@@ -26,23 +26,46 @@ type modelFile struct {
 	Structs []goStruct
 }
 
+// buildGoStruct builds a goStruct named name for table, one field per column,
+// recording any Go type imports the columns need in importSet. Both the models
+// renderer and the query-row renderer use it so struct field naming and tags
+// stay identical.
+func buildGoStruct(name, table string, cols []Column, importSet map[string]struct{}) goStruct {
+	s := goStruct{Name: name, Table: table}
+	for _, col := range cols {
+		gt := goTypeFor(col)
+		if gt.Import != "" {
+			importSet[gt.Import] = struct{}{}
+		}
+		s.Fields = append(s.Fields, goField{
+			Name: goName(col.Name),
+			Type: gt.Name,
+			Tag:  fmt.Sprintf("`json:%q db:%q`", col.Name, col.Name),
+		})
+	}
+	return s
+}
+
+// renderFormatted executes tmpl with data and gofmt-formats the result, which
+// also guarantees the output is valid Go. what labels the output in error
+// messages (e.g. "models", "queries").
+func renderFormatted(tmpl *template.Template, data any, what string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return nil, fmt.Errorf("render %s: %w", what, err)
+	}
+	out, err := format.Source(buf.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("format %s: %w\n--- raw ---\n%s", what, err, buf.String())
+	}
+	return out, nil
+}
+
 func buildModelFile(cat *Catalog, pkg string) modelFile {
 	mf := modelFile{Package: pkg}
 	importSet := map[string]struct{}{}
 	for _, t := range cat.Tables {
-		s := goStruct{Name: structName(t.Name), Table: t.Name}
-		for _, col := range t.Columns {
-			gt := goTypeFor(col)
-			if gt.Import != "" {
-				importSet[gt.Import] = struct{}{}
-			}
-			s.Fields = append(s.Fields, goField{
-				Name: goName(col.Name),
-				Type: gt.Name,
-				Tag:  fmt.Sprintf("`json:%q db:%q`", col.Name, col.Name),
-			})
-		}
-		mf.Structs = append(mf.Structs, s)
+		mf.Structs = append(mf.Structs, buildGoStruct(structName(t.Name), t.Name, t.Columns, importSet))
 	}
 	for imp := range importSet {
 		mf.Imports = append(mf.Imports, imp)
@@ -73,13 +96,5 @@ type {{.Name}} struct {
 // RenderModels generates the models file (one struct per table) for a catalog,
 // formatted with go/format (which also guarantees the output is valid Go).
 func RenderModels(cat *Catalog, pkg string) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := modelsTmpl.Execute(&buf, buildModelFile(cat, pkg)); err != nil {
-		return nil, fmt.Errorf("render models: %w", err)
-	}
-	out, err := format.Source(buf.Bytes())
-	if err != nil {
-		return nil, fmt.Errorf("format models: %w\n--- raw ---\n%s", err, buf.String())
-	}
-	return out, nil
+	return renderFormatted(modelsTmpl, buildModelFile(cat, pkg), "models")
 }
