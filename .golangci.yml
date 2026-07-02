@@ -19,12 +19,9 @@ linters:
     - contextcheck    # context propagation
   settings:
     gocognit:
-      # Target is 15 (see docs/BACKLOG.md — ratchet Generate/analyzeQuery/
-      # RenderQueries/Up down to 15). Set at the current worst so the gate
-      # catches regressions above today's baseline.
-      min-complexity: 20
+      min-complexity: 15
     gocyclo:
-      min-complexity: 20
+      min-complexity: 15
     revive:
       rules:
         # Cobra RunE closures and template helpers legitimately take unused params.
