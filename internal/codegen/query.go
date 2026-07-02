@@ -288,17 +288,76 @@ func resolveTargets(cat *Catalog, table string, targets []*pgquery.Node) ([]Colu
 		if rt == nil {
 			continue
 		}
-		name, ok := columnRefName(rt.Val)
-		if !ok {
-			return nil, false, fmt.Errorf("unsupported result expression (only plain columns and * are supported)")
-		}
-		col, found := findColumn(t, name)
-		if !found {
-			return nil, false, fmt.Errorf("unknown column %q in table %q", name, table)
+		col, err := resolveResultColumn(t, rt)
+		if err != nil {
+			return nil, false, err
 		}
 		cols = append(cols, col)
 	}
 	return cols, false, nil
+}
+
+// resolveResultColumn types one SELECT/RETURNING target: a plain column
+// reference or a supported aggregate (count/min/max).
+func resolveResultColumn(t *Table, rt *pgquery.ResTarget) (Column, error) {
+	if name, ok := columnRefName(rt.Val); ok {
+		col, found := findColumn(t, name)
+		if !found {
+			return Column{}, fmt.Errorf("unknown column %q in table %q", name, t.Name)
+		}
+		return col, nil
+	}
+	if fc := rt.Val.GetFuncCall(); fc != nil {
+		return aggregateColumn(t, rt, fc)
+	}
+	return Column{}, fmt.Errorf("unsupported result expression (plain columns, *, and count/min/max aggregates are supported)")
+}
+
+// aggregateColumn types a count/min/max aggregate. count returns a non-null
+// bigint; min/max keep the argument column's type but may be NULL over an empty
+// set. The result column is named by its alias, or by the function name if none.
+func aggregateColumn(t *Table, rt *pgquery.ResTarget, fc *pgquery.FuncCall) (Column, error) {
+	fn := funcName(fc)
+	name := rt.Name
+	if name == "" {
+		name = fn
+	}
+	switch fn {
+	case "count":
+		return Column{Name: name, PgType: "int8", NotNull: true}, nil
+	case "min", "max":
+		arg, ok := singleColumnArg(fc)
+		if !ok {
+			return Column{}, fmt.Errorf("%s(...) must take a single plain column argument", fn)
+		}
+		col, found := findColumn(t, arg)
+		if !found {
+			return Column{}, fmt.Errorf("unknown column %q in %s(...)", arg, fn)
+		}
+		return Column{Name: name, PgType: col.PgType, NotNull: false, Array: col.Array}, nil
+	default:
+		return Column{}, fmt.Errorf("unsupported aggregate %q (only count/min/max are supported)", fn)
+	}
+}
+
+// funcName returns the lower-cased final element of a function's name.
+func funcName(fc *pgquery.FuncCall) string {
+	if len(fc.Funcname) == 0 {
+		return ""
+	}
+	if s := fc.Funcname[len(fc.Funcname)-1].GetString_(); s != nil {
+		return strings.ToLower(s.Sval)
+	}
+	return ""
+}
+
+// singleColumnArg returns the column name when fc has exactly one plain
+// column-reference argument.
+func singleColumnArg(fc *pgquery.FuncCall) (string, bool) {
+	if len(fc.Args) != 1 {
+		return "", false
+	}
+	return columnRefName(fc.Args[0])
 }
 
 func isStar(node *pgquery.Node) bool {

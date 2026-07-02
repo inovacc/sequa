@@ -1,5 +1,5 @@
 # Known Issues & Limitations
-<!-- rev:003 -->
+<!-- rev:004 -->
 
 This document tracks known bugs and by-design limitations in sequa. Each
 entry has a short id, a description, its impact, and a status or workaround.
@@ -30,18 +30,20 @@ Entries are classified as either:
   instant was never captured). `migrate status` continues to tolerate a
   transient gap.
 
-## ISS-2 — `generate` supports only simple single-table queries
+## ISS-2 — `generate` supports only single-table queries
 
 - **Type:** limitation (by design, current scope)
-- **Description:** `sequa generate` supports only single-statement,
-  single-table queries whose result list is plain columns or `*`. JOINs,
-  aggregates, and computed expressions in the result list are not yet
-  supported.
-- **Impact:** Queries that span multiple tables or project derived values
-  cannot be turned into typed methods by codegen today.
-- **Status / workaround:** Planned expansion (later milestone). For now, keep
-  annotated queries to a single table with plain-column or `*` result lists;
-  write more complex access by hand.
+- **Description:** `sequa generate` handles single-statement, single-table
+  queries. Result lists may be plain columns, `*`, or the `count`, `min`, and
+  `max` aggregates (`count` → non-null `int64`; `min`/`max` → the argument
+  column's type, nullable). Multi-table JOINs, other aggregates (`sum`/`avg`),
+  and arbitrary computed expressions are not yet supported.
+- **Impact:** Queries that span multiple tables or project unsupported derived
+  values cannot be turned into typed methods by codegen today.
+- **Status / workaround:** Partially addressed — `count`/`min`/`max` landed;
+  JOINs and `sum`/`avg`/expressions remain planned. For now, keep annotated
+  queries to a single table with plain-column, `*`, or count/min/max result
+  lists; write more complex access by hand.
 
 ## ISS-3 — the current build is Postgres-only (all verbs)
 

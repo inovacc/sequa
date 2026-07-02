@@ -29,6 +29,18 @@ type GetAuthorRow struct {
 	Bio  sql.NullString `json:"bio" db:"bio"`
 }
 
+// CountBooksByAuthorRow is the result row of a generated query.
+type CountBooksByAuthorRow struct {
+	BookCount int64 `json:"book_count" db:"book_count"`
+}
+
+// BookStatsRow is the result row of a generated query.
+type BookStatsRow struct {
+	Total    int64         `json:"total" db:"total"`
+	Cheapest sql.NullInt32 `json:"cheapest" db:"cheapest"`
+	LatestID sql.NullInt64 `json:"latest_id" db:"latest_id"`
+}
+
 const getAuthor = `SELECT id, name, bio FROM authors WHERE id = $1;`
 
 func (q *Queries) GetAuthor(ctx context.Context, id int64) (GetAuthorRow, error) {
@@ -74,4 +86,22 @@ const deleteBook = `DELETE FROM books WHERE id = $1;`
 func (q *Queries) DeleteBook(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteBook, id)
 	return err
+}
+
+const countBooksByAuthor = `SELECT count(*) AS book_count FROM books WHERE author_id = $1;`
+
+func (q *Queries) CountBooksByAuthor(ctx context.Context, authorId int64) (CountBooksByAuthorRow, error) {
+	row := q.db.QueryRowContext(ctx, countBooksByAuthor, authorId)
+	var i CountBooksByAuthorRow
+	err := row.Scan(&i.BookCount)
+	return i, err
+}
+
+const bookStats = `SELECT count(*) AS total, min(price_cents) AS cheapest, max(id) AS latest_id FROM books;`
+
+func (q *Queries) BookStats(ctx context.Context) (BookStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, bookStats)
+	var i BookStatsRow
+	err := row.Scan(&i.Total, &i.Cheapest, &i.LatestID)
+	return i, err
 }
