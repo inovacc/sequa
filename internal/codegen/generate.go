@@ -22,50 +22,60 @@ type GeneratedFile struct {
 func Generate(cfg *Config, root string) ([]GeneratedFile, error) {
 	var files []GeneratedFile
 	for i := range cfg.SQL {
-		blk := cfg.SQL[i]
-		switch blk.Engine {
-		case "postgresql", "postgres", "":
-		default:
-			return nil, fmt.Errorf("sql[%d]: unsupported engine %q (only postgresql in M3)", i, blk.Engine)
-		}
-
-		migrations, err := readUpMigrations(filepath.Join(root, blk.Schema))
+		blockFiles, err := generateBlock(cfg.SQL[i], root, i)
 		if err != nil {
 			return nil, err
 		}
-		cat, err := BuildCatalog(migrations)
-		if err != nil {
-			return nil, err
-		}
-		models, err := RenderModels(cat, blk.Gen.Go.Package)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, GeneratedFile{
-			Path:    filepath.Join(root, blk.Gen.Go.Out, "models.go"),
-			Content: models,
-		})
-
-		if strings.TrimSpace(blk.Queries) != "" {
-			content, err := readQueries(filepath.Join(root, blk.Queries))
-			if err != nil {
-				return nil, err
-			}
-			queries, err := AnalyzeQueries(cat, content)
-			if err != nil {
-				return nil, fmt.Errorf("sql[%d] queries: %w", i, err)
-			}
-			qsrc, err := RenderQueries(cat, queries, blk.Gen.Go.Package)
-			if err != nil {
-				return nil, err
-			}
-			files = append(files, GeneratedFile{
-				Path:    filepath.Join(root, blk.Gen.Go.Out, "queries.go"),
-				Content: qsrc,
-			})
-		}
+		files = append(files, blockFiles...)
 	}
 	return files, nil
+}
+
+// generateBlock renders the models file (always) and the queries file (when the
+// block sets a queries path) for one sql block.
+func generateBlock(blk SQLBlock, root string, i int) ([]GeneratedFile, error) {
+	switch blk.Engine {
+	case "postgresql", "postgres", "":
+	default:
+		return nil, fmt.Errorf("sql[%d]: unsupported engine %q (only postgresql in M3)", i, blk.Engine)
+	}
+
+	migrations, err := readUpMigrations(filepath.Join(root, blk.Schema))
+	if err != nil {
+		return nil, err
+	}
+	cat, err := BuildCatalog(migrations)
+	if err != nil {
+		return nil, err
+	}
+	models, err := RenderModels(cat, blk.Gen.Go.Package)
+	if err != nil {
+		return nil, err
+	}
+	files := []GeneratedFile{{
+		Path:    filepath.Join(root, blk.Gen.Go.Out, "models.go"),
+		Content: models,
+	}}
+
+	if strings.TrimSpace(blk.Queries) == "" {
+		return files, nil
+	}
+	content, err := readQueries(filepath.Join(root, blk.Queries))
+	if err != nil {
+		return nil, err
+	}
+	queries, err := AnalyzeQueries(cat, content)
+	if err != nil {
+		return nil, fmt.Errorf("sql[%d] queries: %w", i, err)
+	}
+	qsrc, err := RenderQueries(cat, queries, blk.Gen.Go.Package)
+	if err != nil {
+		return nil, err
+	}
+	return append(files, GeneratedFile{
+		Path:    filepath.Join(root, blk.Gen.Go.Out, "queries.go"),
+		Content: qsrc,
+	}), nil
 }
 
 // readQueries reads a single .sql file, or concatenates every *.sql file in a

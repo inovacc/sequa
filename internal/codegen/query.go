@@ -88,58 +88,15 @@ func analyzeQuery(cat *Catalog, rq rawQuery) (Query, error) {
 		return Query{}, fmt.Errorf("expected exactly one SQL statement")
 	}
 	q := Query{Name: rq.Name, Cmd: rq.Cmd, SQL: rq.SQL}
-	stmt := res.Stmts[0].Stmt
-
 	binds := map[int]Column{} // param number -> column it binds to
-
-	switch {
-	case stmt.GetSelectStmt() != nil:
-		s := stmt.GetSelectStmt()
-		q.Table = fromTable(s.FromClause)
-		bindWhere(cat, q.Table, s.WhereClause, binds)
-		if err := q.setResults(cat, q.Table, s.TargetList); err != nil {
-			return Query{}, err
-		}
-	case stmt.GetInsertStmt() != nil:
-		s := stmt.GetInsertStmt()
-		q.Table = relName(s.Relation)
-		bindInsert(cat, q.Table, s, binds)
-		if err := q.setResults(cat, q.Table, s.ReturningList); err != nil {
-			return Query{}, err
-		}
-	case stmt.GetUpdateStmt() != nil:
-		s := stmt.GetUpdateStmt()
-		q.Table = relName(s.Relation)
-		bindUpdate(cat, q.Table, s, binds)
-		bindWhere(cat, q.Table, s.WhereClause, binds)
-		if err := q.setResults(cat, q.Table, s.ReturningList); err != nil {
-			return Query{}, err
-		}
-	case stmt.GetDeleteStmt() != nil:
-		s := stmt.GetDeleteStmt()
-		q.Table = relName(s.Relation)
-		bindWhere(cat, q.Table, s.WhereClause, binds)
-		if err := q.setResults(cat, q.Table, s.ReturningList); err != nil {
-			return Query{}, err
-		}
-	default:
-		return Query{}, fmt.Errorf("unsupported statement type (SELECT/INSERT/UPDATE/DELETE only)")
+	if err := q.bindStatement(cat, res.Stmts[0].Stmt, binds); err != nil {
+		return Query{}, err
 	}
-
-	maxN := 0
-	for n := range binds {
-		if n > maxN {
-			maxN = n
-		}
+	params, err := inferParams(binds)
+	if err != nil {
+		return Query{}, err
 	}
-	used := map[string]int{}
-	for n := 1; n <= maxN; n++ {
-		col, ok := binds[n]
-		if !ok {
-			return Query{}, fmt.Errorf("could not infer the type of parameter $%d", n)
-		}
-		q.Params = append(q.Params, Param{Number: n, Name: argName(col.Name, used), GoType: goTypeFor(col)})
-	}
+	q.Params = params
 
 	if q.Cmd == CmdExec {
 		q.Columns, q.Star = nil, false
@@ -147,6 +104,59 @@ func analyzeQuery(cat *Catalog, rq rawQuery) (Query, error) {
 		return Query{}, fmt.Errorf("%s query returns no columns", q.Cmd)
 	}
 	return q, nil
+}
+
+// bindStatement walks the parsed statement, recording parameter bindings into
+// binds and the result columns onto q. Only single-table SELECT/INSERT/UPDATE/
+// DELETE are supported.
+func (q *Query) bindStatement(cat *Catalog, stmt *pgquery.Node, binds map[int]Column) error {
+	switch {
+	case stmt.GetSelectStmt() != nil:
+		s := stmt.GetSelectStmt()
+		q.Table = fromTable(s.FromClause)
+		bindWhere(cat, q.Table, s.WhereClause, binds)
+		return q.setResults(cat, q.Table, s.TargetList)
+	case stmt.GetInsertStmt() != nil:
+		s := stmt.GetInsertStmt()
+		q.Table = relName(s.Relation)
+		bindInsert(cat, q.Table, s, binds)
+		return q.setResults(cat, q.Table, s.ReturningList)
+	case stmt.GetUpdateStmt() != nil:
+		s := stmt.GetUpdateStmt()
+		q.Table = relName(s.Relation)
+		bindUpdate(cat, q.Table, s, binds)
+		bindWhere(cat, q.Table, s.WhereClause, binds)
+		return q.setResults(cat, q.Table, s.ReturningList)
+	case stmt.GetDeleteStmt() != nil:
+		s := stmt.GetDeleteStmt()
+		q.Table = relName(s.Relation)
+		bindWhere(cat, q.Table, s.WhereClause, binds)
+		return q.setResults(cat, q.Table, s.ReturningList)
+	default:
+		return fmt.Errorf("unsupported statement type (SELECT/INSERT/UPDATE/DELETE only)")
+	}
+}
+
+// inferParams turns the param->column bindings into ordered, uniquely-named
+// typed parameters ($1..$N). A gap in the numbering means a parameter's type
+// could not be inferred.
+func inferParams(binds map[int]Column) ([]Param, error) {
+	maxN := 0
+	for n := range binds {
+		if n > maxN {
+			maxN = n
+		}
+	}
+	used := map[string]int{}
+	var params []Param
+	for n := 1; n <= maxN; n++ {
+		col, ok := binds[n]
+		if !ok {
+			return nil, fmt.Errorf("could not infer the type of parameter $%d", n)
+		}
+		params = append(params, Param{Number: n, Name: argName(col.Name, used), GoType: goTypeFor(col)})
+	}
+	return params, nil
 }
 
 func (q *Query) setResults(cat *Catalog, table string, targets []*pgquery.Node) error {
