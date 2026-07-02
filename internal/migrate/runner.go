@@ -9,8 +9,6 @@ import (
 	"log/slog"
 	"path"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	migratelib "github.com/golang-migrate/migrate/v4"
@@ -69,26 +67,13 @@ func loadNames(srcFS fs.FS, subdir string) (map[uint]string, error) {
 	}
 	names := make(map[uint]string, len(matches))
 	for _, f := range matches {
-		v, name, err := parseFilename(path.Base(f))
+		v, name, err := ParseFilename(path.Base(f))
 		if err != nil {
 			continue
 		}
-		names[v] = name
+		names[uint(v)] = name
 	}
 	return names, nil
-}
-
-func parseFilename(base string) (uint, string, error) {
-	trimmed := strings.TrimSuffix(base, ".up.sql")
-	idx := strings.IndexByte(trimmed, '_')
-	if idx <= 0 {
-		return 0, "", fmt.Errorf("bad migration filename %q", base)
-	}
-	v, err := strconv.ParseUint(trimmed[:idx], 10, 64)
-	if err != nil {
-		return 0, "", fmt.Errorf("bad version in %q: %w", base, err)
-	}
-	return uint(v), trimmed[idx+1:], nil
 }
 
 func sortedVersions(names map[uint]string) []uint {

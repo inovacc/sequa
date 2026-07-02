@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/inovacc/sequa/internal/migrate"
 	"github.com/spf13/cobra"
 )
 
@@ -13,11 +12,7 @@ func newMigrateStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show applied and pending migrations",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			dsn, dir, err := resolveDSNAndDir()
-			if err != nil {
-				return err
-			}
-			r, err := migrate.NewRunner(dsn, os.DirFS(dir), ".")
+			r, err := newRunnerFromFlags()
 			if err != nil {
 				return err
 			}

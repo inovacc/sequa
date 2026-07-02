@@ -18,7 +18,7 @@ tasks:
     cmds:
       - golangci-lint run ./...
   run:
-    desc: Run the sequa CLI (note: blocked on hosts with Application Control)
+    desc: "Run the sequa CLI (note: blocked on hosts with Application Control)"
     cmds:
       - go run ./cmd/sequa {{.CLI_ARGS}}
   test:docker:
