@@ -5,9 +5,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/inovacc/sequa/internal/config"
 	"github.com/inovacc/sequa/internal/migrate"
-	"github.com/spf13/cobra"
 )
 
 func newMigrateCreateCmd() *cobra.Command {

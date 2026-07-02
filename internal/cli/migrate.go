@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/inovacc/sequa/internal/config"
 	"github.com/inovacc/sequa/internal/migrate"
-	"github.com/spf13/cobra"
 )
 
 // newRunnerFromFlags resolves the DSN and migrations directory from the shared
