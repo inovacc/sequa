@@ -16,6 +16,9 @@ builds:
     binary: sequa
     env:
       - CGO_ENABLED=1
+      # libpg_query (pg_query_go) declares strchrnul itself; zig's glibc headers
+      # already declare it. Tell the port code it exists so it skips its copy.
+      - CGO_CFLAGS=-DHAVE_STRCHRNUL
     flags:
       - -trimpath
     ldflags:
