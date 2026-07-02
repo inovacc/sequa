@@ -34,17 +34,16 @@ func Generate(cfg *Config, root string) ([]GeneratedFile, error) {
 // generateBlock renders the models file (always) and the queries file (when the
 // block sets a queries path) for one sql block.
 func generateBlock(blk SQLBlock, root string, i int) ([]GeneratedFile, error) {
-	switch blk.Engine {
-	case "postgresql", "postgres", "":
-	default:
-		return nil, fmt.Errorf("sql[%d]: unsupported engine %q (only postgresql in M3)", i, blk.Engine)
+	eng, err := engineFor(blk.Engine)
+	if err != nil {
+		return nil, fmt.Errorf("sql[%d]: %w", i, err)
 	}
 
 	migrations, err := readUpMigrations(filepath.Join(root, blk.Schema))
 	if err != nil {
 		return nil, err
 	}
-	cat, err := BuildCatalog(migrations)
+	cat, err := eng.BuildCatalog(migrations)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +63,7 @@ func generateBlock(blk SQLBlock, root string, i int) ([]GeneratedFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	queries, err := AnalyzeQueries(cat, content)
+	queries, err := eng.AnalyzeQueries(cat, content)
 	if err != nil {
 		return nil, fmt.Errorf("sql[%d] queries: %w", i, err)
 	}
