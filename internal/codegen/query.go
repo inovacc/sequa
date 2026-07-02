@@ -332,19 +332,3 @@ func argName(col string, used map[string]int) string {
 	}
 	return fmt.Sprintf("%s%d", base, used[base])
 }
-
-func lowerCamel(snake string) string {
-	var b strings.Builder
-	for i, p := range strings.Split(snake, "_") {
-		if p == "" {
-			continue
-		}
-		if i == 0 || b.Len() == 0 {
-			b.WriteString(strings.ToLower(p))
-			continue
-		}
-		b.WriteString(strings.ToUpper(p[:1]))
-		b.WriteString(strings.ToLower(p[1:]))
-	}
-	return b.String()
-}
