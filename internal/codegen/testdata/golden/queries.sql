@@ -15,3 +15,6 @@ SELECT count(*) AS book_count FROM books WHERE author_id = $1;
 
 -- name: BookStats :one
 SELECT count(*) AS total, min(price_cents) AS cheapest, max(id) AS latest_id FROM books;
+
+-- name: PriceStats :one
+SELECT sum(price_cents) AS total_cents, avg(price_cents) AS avg_cents FROM books;

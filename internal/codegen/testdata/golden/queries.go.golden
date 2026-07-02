@@ -41,6 +41,12 @@ type BookStatsRow struct {
 	LatestID sql.NullInt64 `json:"latest_id" db:"latest_id"`
 }
 
+// PriceStatsRow is the result row of a generated query.
+type PriceStatsRow struct {
+	TotalCents sql.NullInt64  `json:"total_cents" db:"total_cents"`
+	AvgCents   sql.NullString `json:"avg_cents" db:"avg_cents"`
+}
+
 const getAuthor = `SELECT id, name, bio FROM authors WHERE id = $1;`
 
 func (q *Queries) GetAuthor(ctx context.Context, id int64) (GetAuthorRow, error) {
@@ -103,5 +109,14 @@ func (q *Queries) BookStats(ctx context.Context) (BookStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, bookStats)
 	var i BookStatsRow
 	err := row.Scan(&i.Total, &i.Cheapest, &i.LatestID)
+	return i, err
+}
+
+const priceStats = `SELECT sum(price_cents) AS total_cents, avg(price_cents) AS avg_cents FROM books;`
+
+func (q *Queries) PriceStats(ctx context.Context) (PriceStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, priceStats)
+	var i PriceStatsRow
+	err := row.Scan(&i.TotalCents, &i.AvgCents)
 	return i, err
 }

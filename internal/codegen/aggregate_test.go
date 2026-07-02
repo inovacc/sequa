@@ -35,6 +35,21 @@ func TestAnalyzeAggregates(t *testing.T) {
 			sql:      "-- name: G :many\nSELECT author_id, count(*) AS n FROM books GROUP BY author_id;",
 			wantType: map[string]string{"author_id": "int64", "n": "int64"},
 		},
+		{
+			name:     "sum of an int column widens to nullable bigint",
+			sql:      "-- name: S :one\nSELECT sum(price_cents) AS total FROM books;",
+			wantType: map[string]string{"total": "sql.NullInt64"},
+		},
+		{
+			name:     "sum of bigint is numeric (nullable string)",
+			sql:      "-- name: SB :one\nSELECT sum(id) AS s FROM books;",
+			wantType: map[string]string{"s": "sql.NullString"},
+		},
+		{
+			name:     "avg of an int column is numeric (nullable string)",
+			sql:      "-- name: A :one\nSELECT avg(price_cents) AS mean FROM books;",
+			wantType: map[string]string{"mean": "sql.NullString"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -59,11 +74,19 @@ func TestAnalyzeAggregates(t *testing.T) {
 }
 
 func TestAnalyzeUnsupportedAggregate(t *testing.T) {
-	cat, err := BuildCatalog([]string{`CREATE TABLE t (x INT);`})
+	cat, err := BuildCatalog([]string{`CREATE TABLE t (x INT, label TEXT);`})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AnalyzeQueries(cat, "-- name: S :one\nSELECT sum(x) AS s FROM t;"); err == nil {
-		t.Fatal("expected error for unsupported aggregate sum(...)")
+	cases := map[string]string{
+		"unknown aggregate function":  "-- name: S :one\nSELECT stddev(x) AS s FROM t;",
+		"sum of a non-numeric column": "-- name: S :one\nSELECT sum(label) AS s FROM t;",
+	}
+	for name, sql := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := AnalyzeQueries(cat, sql); err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+		})
 	}
 }

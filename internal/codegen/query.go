@@ -322,22 +322,59 @@ func aggregateColumn(t *Table, rt *pgquery.ResTarget, fc *pgquery.FuncCall) (Col
 	if name == "" {
 		name = fn
 	}
-	switch fn {
-	case "count":
+	if fn == "count" {
+		// count(*) and count(expr) both return a non-null bigint.
 		return Column{Name: name, PgType: "int8", NotNull: true}, nil
-	case "min", "max":
-		arg, ok := singleColumnArg(fc)
-		if !ok {
-			return Column{}, fmt.Errorf("%s(...) must take a single plain column argument", fn)
-		}
-		col, found := findColumn(t, arg)
-		if !found {
-			return Column{}, fmt.Errorf("unknown column %q in %s(...)", arg, fn)
-		}
-		return Column{Name: name, PgType: col.PgType, NotNull: false, Array: col.Array}, nil
-	default:
-		return Column{}, fmt.Errorf("unsupported aggregate %q (only count/min/max are supported)", fn)
 	}
+	arg, ok := singleColumnArg(fc)
+	if !ok {
+		return Column{}, fmt.Errorf("%s(...) must take a single plain column argument", fn)
+	}
+	col, found := findColumn(t, arg)
+	if !found {
+		return Column{}, fmt.Errorf("unknown column %q in %s(...)", arg, fn)
+	}
+	switch fn {
+	case "min", "max":
+		// min/max preserve the column's type but can be NULL over an empty set.
+		return Column{Name: name, PgType: col.PgType, NotNull: false, Array: col.Array}, nil
+	case "sum", "avg":
+		pgType, ok := numericAggregateType(fn, col.PgType)
+		if !ok {
+			return Column{}, fmt.Errorf("%s(%s) is unsupported (numeric column types only)", fn, col.PgType)
+		}
+		return Column{Name: name, PgType: pgType, NotNull: false}, nil
+	default:
+		return Column{}, fmt.Errorf("unsupported aggregate %q (count/min/max/sum/avg only)", fn)
+	}
+}
+
+// numericAggregateType returns the Postgres result type of sum/avg over a
+// column of argPg, following Postgres's own promotion rules: sum of a small
+// integer widens to bigint, sum of bigint/numeric is numeric, avg of any exact
+// type is numeric, and floating types stay in the float family.
+func numericAggregateType(fn, argPg string) (string, bool) {
+	switch fn {
+	case "sum":
+		switch argPg {
+		case "int2", "int4":
+			return "int8", true
+		case "int8", "numeric":
+			return "numeric", true
+		case "float4":
+			return "float4", true
+		case "float8":
+			return "float8", true
+		}
+	case "avg":
+		switch argPg {
+		case "int2", "int4", "int8", "numeric":
+			return "numeric", true
+		case "float4", "float8":
+			return "float8", true
+		}
+	}
+	return "", false
 }
 
 // funcName returns the lower-cased final element of a function's name.
