@@ -1,5 +1,5 @@
 # Known Issues & Limitations
-<!-- rev:002 -->
+<!-- rev:003 -->
 
 This document tracks known bugs and by-design limitations in sequa. Each
 entry has a short id, a description, its impact, and a status or workaround.
@@ -19,10 +19,16 @@ Entries are classified as either:
   written, leaving one migration applied but unrecorded.
 - **Impact:** A single history row can be dropped on an ill-timed crash. The
   schema change itself is not lost or corrupted — only its bookkeeping row.
-- **Status / workaround:** Open. `migrate status` tolerates missing history
-  rows, so a dropped row does not block normal operation or reporting. A
-  future fix would fold the history insert into the step transaction so both
-  commit atomically.
+- **Status / workaround:** Mitigated (self-healing). The insert is still
+  separate from migrate's transaction — golang-migrate does not expose a hook to
+  join it — so the crash window still exists momentarily. But `up` and `down`
+  now reconcile on start: because migrate is linear, every known version at or
+  below its current version is applied, so any such version missing its history
+  row is backfilled automatically (`reconcileHistory`). A dropped row is
+  therefore restored on the next migration operation rather than lost
+  permanently (`applied_at` reflects the reconcile time, since the original
+  instant was never captured). `migrate status` continues to tolerate a
+  transient gap.
 
 ## ISS-2 — `generate` supports only simple single-table queries
 

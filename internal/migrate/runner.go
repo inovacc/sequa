@@ -137,11 +137,117 @@ func stop(err error) bool {
 	return errors.As(err, &short)
 }
 
+// currentVersion returns migrate's current schema version, mapping the
+// fresh-database ErrNilVersion to 0.
+func currentVersion(m *migratelib.Migrate) (uint, error) {
+	v, _, err := m.Version()
+	if err != nil {
+		if errors.Is(err, migratelib.ErrNilVersion) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return v, nil
+}
+
+// missingVersions returns the known versions <= current with no history row
+// recorded, in ascending order (known must already be sorted ascending). These
+// are the applied migrations whose history was lost and must be backfilled.
+func missingVersions(known []uint, recorded map[uint]bool, current uint) []uint {
+	var out []uint
+	for _, v := range known {
+		if v <= current && !recorded[v] {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// reconcileHistory backfills history rows for migrations that migrate has
+// applied but whose sequa_schema_history 'up' record was lost — e.g. a crash
+// between a migrate step's commit and the follow-up history INSERT. migrate is
+// linear, so every known version <= current is applied; any such version with
+// no history row at all is re-recorded. applied_at defaults to the reconcile
+// time because the original instant was never durably captured.
+func (r *Runner) reconcileHistory(ctx context.Context, db *sql.DB, current uint) error {
+	if current == 0 {
+		return nil
+	}
+	recorded, err := recordedVersions(ctx, db)
+	if err != nil {
+		return err
+	}
+	for _, v := range missingVersions(sortedVersions(r.names), recorded, current) {
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO sequa_schema_history (version, name, direction) VALUES ($1, $2, 'up')`,
+			int64(v), r.names[v]); err != nil {
+			return fmt.Errorf("backfill history for version %d: %w", v, err)
+		}
+	}
+	return nil
+}
+
+// recordedVersions is the set of versions that already have any history row.
+// The rows are fully drained and closed before the caller issues follow-up
+// writes on the same pool.
+func recordedVersions(ctx context.Context, db *sql.DB) (map[uint]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT version FROM sequa_schema_history`)
+	if err != nil {
+		return nil, fmt.Errorf("read history versions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	recorded := make(map[uint]bool)
+	for rows.Next() {
+		var v int64
+		if err := rows.Scan(&v); err != nil {
+			return nil, fmt.Errorf("scan history version: %w", err)
+		}
+		recorded[uint(v)] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate history versions: %w", err)
+	}
+	return recorded, nil
+}
+
+// prepare ensures the history table exists and heals any history rows lost to a
+// crash, returning migrate's current version. Both Up and Down call it before
+// changing state.
+func (r *Runner) prepare(ctx context.Context, db *sql.DB, m *migratelib.Migrate) (uint, error) {
+	if err := ensureHistory(ctx, db); err != nil {
+		return 0, err
+	}
+	current, err := currentVersion(m)
+	if err != nil {
+		return 0, fmt.Errorf("read version: %w", err)
+	}
+	if err := r.reconcileHistory(ctx, db, current); err != nil {
+		return 0, err
+	}
+	return current, nil
+}
+
+// recordApplied reads the version migrate just advanced to and writes its 'up'
+// history row.
+func (r *Runner) recordApplied(ctx context.Context, db *sql.DB, m *migratelib.Migrate) (Applied, error) {
+	v, _, err := m.Version()
+	if err != nil {
+		return Applied{}, fmt.Errorf("read version: %w", err)
+	}
+	name := r.names[v]
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO sequa_schema_history (version, name, direction) VALUES ($1, $2, 'up')`,
+		int64(v), name); err != nil {
+		return Applied{}, fmt.Errorf("record history: %w", err)
+	}
+	return Applied{Version: v, Name: name, AppliedAt: time.Now()}, nil
+}
+
 // Up applies all pending migrations one step at a time, recording history.
 func (r *Runner) Up(ctx context.Context) ([]Applied, error) {
 	var applied []Applied
 	err := r.withMigrate(ctx, func(db *sql.DB, m *migratelib.Migrate) error {
-		if err := ensureHistory(ctx, db); err != nil {
+		if _, err := r.prepare(ctx, db, m); err != nil {
 			return err
 		}
 		for {
@@ -151,17 +257,11 @@ func (r *Runner) Up(ctx context.Context) ([]Applied, error) {
 				}
 				return fmt.Errorf("apply step: %w", err)
 			}
-			v, _, err := m.Version()
+			a, err := r.recordApplied(ctx, db, m)
 			if err != nil {
-				return fmt.Errorf("read version: %w", err)
+				return err
 			}
-			name := r.names[v]
-			if _, err := db.ExecContext(ctx,
-				`INSERT INTO sequa_schema_history (version, name, direction) VALUES ($1, $2, 'up')`,
-				int64(v), name); err != nil {
-				return fmt.Errorf("record history: %w", err)
-			}
-			applied = append(applied, Applied{Version: v, Name: name, AppliedAt: time.Now()})
+			applied = append(applied, a)
 		}
 	})
 	return applied, err
@@ -171,15 +271,12 @@ func (r *Runner) Up(ctx context.Context) ([]Applied, error) {
 func (r *Runner) Down(ctx context.Context) (*Applied, error) {
 	var result *Applied
 	err := r.withMigrate(ctx, func(db *sql.DB, m *migratelib.Migrate) error {
-		if err := ensureHistory(ctx, db); err != nil {
+		before, err := r.prepare(ctx, db, m)
+		if err != nil {
 			return err
 		}
-		before, _, verr := m.Version()
-		if verr != nil {
-			if errors.Is(verr, migratelib.ErrNilVersion) {
-				return nil // nothing to roll back
-			}
-			return fmt.Errorf("read version: %w", verr)
+		if before == 0 {
+			return nil // nothing to roll back
 		}
 		if err := m.Steps(-1); err != nil {
 			if stop(err) {
@@ -222,14 +319,9 @@ func (r *Runner) Version(ctx context.Context) (uint, bool, error) {
 func (r *Runner) Status(ctx context.Context) ([]Status, error) {
 	var out []Status
 	err := r.withMigrate(ctx, func(db *sql.DB, m *migratelib.Migrate) error {
-		var current uint
-		if v, _, verr := m.Version(); verr != nil {
-			if !errors.Is(verr, migratelib.ErrNilVersion) {
-				return verr
-			}
-			current = 0
-		} else {
-			current = v
+		current, err := currentVersion(m)
+		if err != nil {
+			return err
 		}
 		hist, err := historyMap(ctx, db)
 		if err != nil {
