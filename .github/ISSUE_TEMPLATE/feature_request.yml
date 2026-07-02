@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an enhancement for sequa
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to do that sequa doesn't support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like sequa to do? CLI shape, generated output, etc.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [migrate, generate, query, verify, "pkg/sequa (library)", engines (MySQL/SQLite), other]
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
