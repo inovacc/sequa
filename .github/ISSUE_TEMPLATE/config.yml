@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap & backlog
+    url: https://github.com/inovacc/sequa/blob/main/docs/ROADMAP.md
+    about: Check the roadmap and backlog before filing — your idea may already be tracked.
+  - name: Known issues & limitations
+    url: https://github.com/inovacc/sequa/blob/main/docs/ISSUES.md
+    about: Confirm it isn't a documented limitation first.
