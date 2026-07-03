@@ -65,9 +65,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+          go-version-file: go.mod
+          cache: true
+      # The gitleaks-action requires a paid license for org-owned repos; the CLI
+      # is free (Apache-2.0). Pinned + built with the job's Go for reproducibility.
+      - name: Install gitleaks
+        run: go install github.com/gitleaks/gitleaks/v8@v8.30.1
+      - name: Scan for secrets
+        run: "$(go env GOPATH)/bin/gitleaks dir . --config .gitleaks.toml --redact --no-banner"
 
   integration:
     name: integration (real Postgres)
