@@ -1,5 +1,5 @@
 # sequa
-<!-- rev:003 -->
+<!-- rev:004 -->
 
 [![CI](https://github.com/inovacc/sequa/actions/workflows/ci.yml/badge.svg)](https://github.com/inovacc/sequa/actions/workflows/ci.yml)
 
@@ -210,6 +210,7 @@ The project uses a [Taskfile](https://taskfile.dev):
 ```
 task build        # go build ./...
 task test         # go test -short ./...       (unit tests only)
+task test:cover   # short tests + total coverage
 task test:full    # go test ./...              (needs SEQUA_TEST_DATABASE_URL)
 task lint         # golangci-lint run ./...
 task test:docker  # full suite incl. integration, in Docker vs real Postgres
@@ -235,6 +236,12 @@ integration tests, which share one Postgres, don't race on schema creation.
 | **M3** | `generate` (Postgres) — models + typed query methods from the migration-defined schema | Done |
 | **M4** | `verify` — introspection + drift diff (live schema vs migrations) | Done |
 | **M5** | Engines 2 & 3 — MySQL + SQLite codegen behind an `Engine` abstraction | Planned |
+
+## Documentation
+
+Full documentation is indexed in **[docs/README.md](docs/README.md)** — design,
+the generate/query guide, roadmap, backlog, known issues, and feature specs.
+Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

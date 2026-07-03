@@ -1,6 +1,6 @@
 # M5 — MySQL & SQLite codegen (design spec)
 
-Status: proposed · Author: hardening pass 2026-07-02 · Milestone: M5
+Status: proposed (2026-07-02) · Milestone: M5
 
 Point-in-time design record. Not a living doc — do not rev-tag.
 
