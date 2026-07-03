@@ -20,6 +20,8 @@ WHERE c.relkind = 'r'
   AND n.nspname = 'public'
   AND a.attnum > 0
   AND NOT a.attisdropped
+  -- Exclude migration bookkeeping tables so verify does not flag them as drift.
+  AND c.relname NOT IN ('schema_migrations', 'sequa_schema_history')
 ORDER BY c.relname, a.attnum`
 
 // Introspect builds a schema Catalog from the live database by reading
