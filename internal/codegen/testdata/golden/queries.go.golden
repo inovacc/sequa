@@ -47,6 +47,14 @@ type PriceStatsRow struct {
 	AvgCents   sql.NullString `json:"avg_cents" db:"avg_cents"`
 }
 
+// ListBooksWithAuthorRow is the result row of a generated query.
+type ListBooksWithAuthorRow struct {
+	BookID     int64         `json:"book_id" db:"book_id"`
+	Title      string        `json:"title" db:"title"`
+	PriceCents sql.NullInt32 `json:"price_cents" db:"price_cents"`
+	AuthorName string        `json:"author_name" db:"author_name"`
+}
+
 const getAuthor = `SELECT id, name, bio FROM authors WHERE id = $1;`
 
 func (q *Queries) GetAuthor(ctx context.Context, id int64) (GetAuthorRow, error) {
@@ -119,4 +127,29 @@ func (q *Queries) PriceStats(ctx context.Context) (PriceStatsRow, error) {
 	var i PriceStatsRow
 	err := row.Scan(&i.TotalCents, &i.AvgCents)
 	return i, err
+}
+
+const listBooksWithAuthor = `SELECT b.id AS book_id, b.title, b.price_cents, a.name AS author_name
+FROM books b
+INNER JOIN authors a ON b.author_id = a.id
+WHERE a.id = $1;`
+
+func (q *Queries) ListBooksWithAuthor(ctx context.Context, id int64) ([]ListBooksWithAuthorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBooksWithAuthor, id)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var items []ListBooksWithAuthorRow
+	for rows.Next() {
+		var i ListBooksWithAuthorRow
+		if err := rows.Scan(&i.BookID, &i.Title, &i.PriceCents, &i.AuthorName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

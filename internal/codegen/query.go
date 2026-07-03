@@ -112,10 +112,7 @@ func analyzeQuery(cat *Catalog, rq rawQuery) (Query, error) {
 func (q *Query) bindStatement(cat *Catalog, stmt *pgquery.Node, binds map[int]Column) error {
 	switch {
 	case stmt.GetSelectStmt() != nil:
-		s := stmt.GetSelectStmt()
-		q.Table = fromTable(s.FromClause)
-		bindWhere(cat, q.Table, s.WhereClause, binds)
-		return q.setResults(cat, q.Table, s.TargetList)
+		return q.bindSelect(cat, stmt.GetSelectStmt(), binds)
 	case stmt.GetInsertStmt() != nil:
 		s := stmt.GetInsertStmt()
 		q.Table = relName(s.Relation)
@@ -175,28 +172,165 @@ func relName(r *pgquery.RangeVar) string {
 	return r.Relname
 }
 
-func fromTable(from []*pgquery.Node) string {
-	for _, n := range from {
-		if rv := n.GetRangeVar(); rv != nil {
-			return rv.Relname
-		}
-	}
-	return ""
+// relation is one FROM/JOIN table together with the name (its alias, else the
+// table name) that qualified column references (t.col) resolve against.
+type relation struct {
+	name  string
+	table *Table
 }
 
-func columnRefName(node *pgquery.Node) (string, bool) {
+// bindSelect binds a SELECT. A single-table (or no-FROM) select preserves the
+// original single-table typing exactly; a multi-table (JOIN) select resolves
+// result columns and parameters across the joined relations.
+func (q *Query) bindSelect(cat *Catalog, s *pgquery.SelectStmt, binds map[int]Column) error {
+	rels, err := collectRelations(cat, s.FromClause)
+	if err != nil {
+		return err
+	}
+	if len(rels) <= 1 {
+		table := ""
+		if len(rels) == 1 {
+			table = rels[0].table.Name
+		}
+		q.Table = table
+		bindWhere(cat, table, s.WhereClause, binds)
+		return q.setResults(cat, table, s.TargetList)
+	}
+	return q.bindJoinSelect(rels, s, binds)
+}
+
+// bindJoinSelect types a JOIN select: params bind across the relations and the
+// result is an explicit column list scanned into a per-query row struct (never
+// a table's model), so q.Star is always false.
+func (q *Query) bindJoinSelect(rels []relation, s *pgquery.SelectStmt, binds map[int]Column) error {
+	bindWhereRel(rels, s.WhereClause, binds)
+	cols, err := resolveJoinTargets(rels, s.TargetList)
+	if err != nil {
+		return err
+	}
+	q.Columns, q.Star, q.Table = cols, false, ""
+	return nil
+}
+
+// collectRelations walks a SELECT's FROM clause into an ordered list of
+// relations, descending INNER JOIN trees. Outer joins and non-table FROM items
+// (subqueries, functions) are rejected.
+func collectRelations(cat *Catalog, from []*pgquery.Node) ([]relation, error) {
+	var rels []relation
+	for _, n := range from {
+		got, err := collectFromNode(cat, n)
+		if err != nil {
+			return nil, err
+		}
+		rels = append(rels, got...)
+	}
+	return rels, nil
+}
+
+func collectFromNode(cat *Catalog, n *pgquery.Node) ([]relation, error) {
+	if rv := n.GetRangeVar(); rv != nil {
+		r, err := relationFromRangeVar(cat, rv)
+		if err != nil {
+			return nil, err
+		}
+		return []relation{r}, nil
+	}
+	if je := n.GetJoinExpr(); je != nil {
+		return collectJoin(cat, je)
+	}
+	return nil, fmt.Errorf("unsupported FROM item (only tables and INNER JOINs are supported)")
+}
+
+func collectJoin(cat *Catalog, je *pgquery.JoinExpr) ([]relation, error) {
+	if je.GetJointype() != pgquery.JoinType_JOIN_INNER {
+		return nil, fmt.Errorf("only INNER JOIN is supported; outer joins are planned")
+	}
+	left, err := collectFromNode(cat, je.GetLarg())
+	if err != nil {
+		return nil, err
+	}
+	right, err := collectFromNode(cat, je.GetRarg())
+	if err != nil {
+		return nil, err
+	}
+	return append(left, right...), nil
+}
+
+func relationFromRangeVar(cat *Catalog, rv *pgquery.RangeVar) (relation, error) {
+	t := cat.Table(rv.Relname)
+	if t == nil {
+		return relation{}, fmt.Errorf("unknown table %q", rv.Relname)
+	}
+	name := rv.Relname
+	if rv.Alias != nil && rv.Alias.Aliasname != "" {
+		name = rv.Alias.Aliasname
+	}
+	return relation{name: name, table: t}, nil
+}
+
+// columnRefParts splits a ColumnRef into an optional qualifier (t in t.col) and
+// the column name. ok is false for a non-column ref such as "*" or "t.*", whose
+// last field is an A_Star rather than a String_.
+func columnRefParts(node *pgquery.Node) (qualifier, column string, ok bool) {
 	if node == nil {
-		return "", false
+		return "", "", false
 	}
 	cr := node.GetColumnRef()
 	if cr == nil || len(cr.Fields) == 0 {
-		return "", false
+		return "", "", false
 	}
-	last := cr.Fields[len(cr.Fields)-1]
-	if s := last.GetString_(); s != nil {
-		return s.Sval, true
+	last := cr.Fields[len(cr.Fields)-1].GetString_()
+	if last == nil {
+		return "", "", false
 	}
-	return "", false
+	if len(cr.Fields) >= 2 {
+		if q := cr.Fields[len(cr.Fields)-2].GetString_(); q != nil {
+			qualifier = q.Sval
+		}
+	}
+	return qualifier, last.Sval, true
+}
+
+func columnRefName(node *pgquery.Node) (string, bool) {
+	_, col, ok := columnRefParts(node)
+	return col, ok
+}
+
+// resolveRelationColumn resolves a (possibly qualified) column reference against
+// the joined relations. An unqualified name present in more than one relation is
+// ambiguous; a name in none is unknown.
+func resolveRelationColumn(rels []relation, qualifier, col string) (Column, error) {
+	if qualifier != "" {
+		return resolveQualified(rels, qualifier, col)
+	}
+	var found Column
+	matches := 0
+	for _, r := range rels {
+		if c, ok := findColumn(r.table, col); ok {
+			found, matches = c, matches+1
+		}
+	}
+	switch matches {
+	case 0:
+		return Column{}, fmt.Errorf("unknown column %q in the joined tables", col)
+	case 1:
+		return found, nil
+	default:
+		return Column{}, fmt.Errorf("ambiguous column %q; qualify it with a table or alias", col)
+	}
+}
+
+func resolveQualified(rels []relation, qualifier, col string) (Column, error) {
+	for _, r := range rels {
+		if r.name != qualifier {
+			continue
+		}
+		if c, ok := findColumn(r.table, col); ok {
+			return c, nil
+		}
+		return Column{}, fmt.Errorf("unknown column %q in %q", col, qualifier)
+	}
+	return Column{}, fmt.Errorf("unknown table or alias %q", qualifier)
 }
 
 func paramNum(node *pgquery.Node) int {
@@ -239,6 +373,44 @@ func bindWhere(cat *Catalog, table string, where *pgquery.Node, binds map[int]Co
 		}
 		bindWhere(cat, table, ae.Lexpr, binds)
 		bindWhere(cat, table, ae.Rexpr, binds)
+	}
+}
+
+// bindWhereRel is the JOIN-aware counterpart of bindWhere: it binds params in a
+// WHERE clause to columns resolved across the joined relations.
+func bindWhereRel(rels []relation, where *pgquery.Node, binds map[int]Column) {
+	if where == nil {
+		return
+	}
+	if be := where.GetBoolExpr(); be != nil {
+		for _, arg := range be.Args {
+			bindWhereRel(rels, arg, binds)
+		}
+		return
+	}
+	if ae := where.GetAExpr(); ae != nil {
+		bindAExprRel(rels, ae, binds)
+	}
+}
+
+func bindAExprRel(rels []relation, ae *pgquery.A_Expr, binds map[int]Column) {
+	lq, lcol, lok := columnRefParts(ae.Lexpr)
+	rq, rcol, rok := columnRefParts(ae.Rexpr)
+	if lok && paramNum(ae.Rexpr) > 0 {
+		bindColRel(rels, lq, lcol, paramNum(ae.Rexpr), binds)
+	} else if rok && paramNum(ae.Lexpr) > 0 {
+		bindColRel(rels, rq, rcol, paramNum(ae.Lexpr), binds)
+	}
+	bindWhereRel(rels, ae.Lexpr, binds)
+	bindWhereRel(rels, ae.Rexpr, binds)
+}
+
+// bindColRel binds param n to a (possibly qualified) column when it resolves
+// unambiguously. Resolution failures are skipped silently (mirroring the
+// single-table binder) so a missing binding surfaces later in param typing.
+func bindColRel(rels []relation, qualifier, col string, n int, binds map[int]Column) {
+	if c, err := resolveRelationColumn(rels, qualifier, col); err == nil {
+		binds[n] = c
 	}
 }
 
@@ -323,18 +495,74 @@ func resolveResultColumn(t *Table, rt *pgquery.ResTarget) (Column, error) {
 	return Column{}, fmt.Errorf("unsupported result expression (plain columns, *, and count/min/max aggregates are supported)")
 }
 
-// aggregateColumn types a count/min/max aggregate. count returns a non-null
-// bigint; min/max keep the argument column's type but may be NULL over an empty
-// set. The result column is named by its alias, or by the function name if none.
+// resolveJoinTargets types every explicit result column of a JOIN query. It
+// rejects "*" (single-table "*" keeps its own fast path) and duplicate result
+// names, which would otherwise produce colliding Go struct fields.
+func resolveJoinTargets(rels []relation, targets []*pgquery.Node) ([]Column, error) {
+	var cols []Column
+	seen := map[string]bool{}
+	for _, tg := range targets {
+		rt := tg.GetResTarget()
+		if rt == nil {
+			continue
+		}
+		col, err := resolveJoinResultColumn(rels, rt)
+		if err != nil {
+			return nil, err
+		}
+		if seen[col.Name] {
+			return nil, fmt.Errorf("duplicate result column %q; alias one with AS", col.Name)
+		}
+		seen[col.Name] = true
+		cols = append(cols, col)
+	}
+	return cols, nil
+}
+
+// resolveJoinResultColumn types one result target of a JOIN query: a qualified
+// or unqualified column, or a supported aggregate over a joined column. When an
+// AS alias is present it names the result column (so duplicate bare names can be
+// disambiguated).
+func resolveJoinResultColumn(rels []relation, rt *pgquery.ResTarget) (Column, error) {
+	if isStar(rt.Val) {
+		return Column{}, fmt.Errorf("SELECT * is not supported with JOINs; list columns explicitly")
+	}
+	if qualifier, col, ok := columnRefParts(rt.Val); ok {
+		resolved, err := resolveRelationColumn(rels, qualifier, col)
+		if err != nil {
+			return Column{}, err
+		}
+		if rt.Name != "" {
+			resolved.Name = rt.Name
+		}
+		return resolved, nil
+	}
+	if fc := rt.Val.GetFuncCall(); fc != nil {
+		return aggregateColumnRel(rels, rt, fc)
+	}
+	return Column{}, fmt.Errorf("unsupported result expression in JOIN query (plain columns and count/min/max/sum/avg aggregates only)")
+}
+
+// aggName is the result-column name of an aggregate: its AS alias, or the
+// function name when none is given.
+func aggName(rt *pgquery.ResTarget, fn string) string {
+	if rt.Name != "" {
+		return rt.Name
+	}
+	return fn
+}
+
+// countColumn is the non-null bigint result of count(*)/count(expr).
+func countColumn(name string) Column {
+	return Column{Name: name, PgType: "int8", NotNull: true}
+}
+
+// aggregateColumn types a single-table count/min/max/sum/avg aggregate.
 func aggregateColumn(t *Table, rt *pgquery.ResTarget, fc *pgquery.FuncCall) (Column, error) {
 	fn := funcName(fc)
-	name := rt.Name
-	if name == "" {
-		name = fn
-	}
+	name := aggName(rt, fn)
 	if fn == "count" {
-		// count(*) and count(expr) both return a non-null bigint.
-		return Column{Name: name, PgType: "int8", NotNull: true}, nil
+		return countColumn(name), nil
 	}
 	arg, ok := singleColumnArg(fc)
 	if !ok {
@@ -344,14 +572,39 @@ func aggregateColumn(t *Table, rt *pgquery.ResTarget, fc *pgquery.FuncCall) (Col
 	if !found {
 		return Column{}, fmt.Errorf("unknown column %q in %s(...)", arg, fn)
 	}
+	return aggregateResult(fn, name, col)
+}
+
+// aggregateColumnRel types an aggregate whose argument column is resolved across
+// the joined relations.
+func aggregateColumnRel(rels []relation, rt *pgquery.ResTarget, fc *pgquery.FuncCall) (Column, error) {
+	fn := funcName(fc)
+	name := aggName(rt, fn)
+	if fn == "count" {
+		return countColumn(name), nil
+	}
+	qualifier, arg, ok := singleColumnArgParts(fc)
+	if !ok {
+		return Column{}, fmt.Errorf("%s(...) must take a single plain column argument", fn)
+	}
+	col, err := resolveRelationColumn(rels, qualifier, arg)
+	if err != nil {
+		return Column{}, err
+	}
+	return aggregateResult(fn, name, col)
+}
+
+// aggregateResult types min/max/sum/avg over an already-resolved argument
+// column. min/max keep the column's type but may be NULL over an empty set;
+// sum/avg follow Postgres's numeric promotion. count is handled by countColumn.
+func aggregateResult(fn, name string, arg Column) (Column, error) {
 	switch fn {
 	case "min", "max":
-		// min/max preserve the column's type but can be NULL over an empty set.
-		return Column{Name: name, PgType: col.PgType, NotNull: false, Array: col.Array}, nil
+		return Column{Name: name, PgType: arg.PgType, NotNull: false, Array: arg.Array}, nil
 	case "sum", "avg":
-		pgType, ok := numericAggregateType(fn, col.PgType)
+		pgType, ok := numericAggregateType(fn, arg.PgType)
 		if !ok {
-			return Column{}, fmt.Errorf("%s(%s) is unsupported (numeric column types only)", fn, col.PgType)
+			return Column{}, fmt.Errorf("%s(%s) is unsupported (numeric column types only)", fn, arg.PgType)
 		}
 		return Column{Name: name, PgType: pgType, NotNull: false}, nil
 	default:
@@ -398,13 +651,20 @@ func funcName(fc *pgquery.FuncCall) string {
 	return ""
 }
 
+// singleColumnArgParts returns the (optional qualifier, column) of fc when it
+// has exactly one plain column-reference argument.
+func singleColumnArgParts(fc *pgquery.FuncCall) (qualifier, column string, ok bool) {
+	if len(fc.Args) != 1 {
+		return "", "", false
+	}
+	return columnRefParts(fc.Args[0])
+}
+
 // singleColumnArg returns the column name when fc has exactly one plain
 // column-reference argument.
 func singleColumnArg(fc *pgquery.FuncCall) (string, bool) {
-	if len(fc.Args) != 1 {
-		return "", false
-	}
-	return columnRefName(fc.Args[0])
+	_, col, ok := singleColumnArgParts(fc)
+	return col, ok
 }
 
 func isStar(node *pgquery.Node) bool {
