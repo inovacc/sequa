@@ -1,5 +1,5 @@
 # Roadmap
-<!-- rev:004 -->
+<!-- rev:005 -->
 
 Milestone roadmap for **sequa** — one Go tool to migrate, query, and generate
 type-safe Go from a single SQL schema.
@@ -20,7 +20,7 @@ type-safe Go from a single SQL schema.
 |---------|-----------|-------|
 | **Now** (shipped) | M1–M3, M4 `verify` (introspect + drift diff, incl. `--ephemeral`), M5 phase 1 (Engine boundary) | ✅ done |
 | **Next** | M5 phases 2–3: MySQL + SQLite codegen behind the Engine seam — see [specs/M5-engines.md](./specs/M5-engines.md) | ⬜ planned |
-| **Later** | Broaden `generate` (JOINs, `:copyfrom`/`:batch`) — see [specs/generate-joins.md](./specs/generate-joins.md) & [specs/generate-batch-verbs.md](./specs/generate-batch-verbs.md) | ⬜ backlog |
+| **Later** | Broaden `generate` (inner JOINs shipped; outer joins, `:copyfrom`/`:batch` remain) — see [specs/generate-joins.md](./specs/generate-joins.md) & [specs/generate-batch-verbs.md](./specs/generate-batch-verbs.md) | ⬜ backlog |
 
 ## Milestones
 
