@@ -1,5 +1,5 @@
 # sequa
-<!-- rev:002 -->
+<!-- rev:003 -->
 
 [![CI](https://github.com/inovacc/sequa/actions/workflows/ci.yml/badge.svg)](https://github.com/inovacc/sequa/actions/workflows/ci.yml)
 
@@ -103,9 +103,11 @@ DELETE FROM users WHERE id = $1;
 | `:many` | `([]Row, error)` via `QueryContext` |
 | `:exec` | `error` via `ExecContext` |
 
-Result lists may be plain columns, `*`, or the `count`/`min`/`max` aggregates
-(`count` → non-null `int64`; `min`/`max` → the column's type, nullable). JOINs
-and `sum`/`avg` are not supported yet — see ISS-2 in [docs/ISSUES.md](docs/ISSUES.md).
+Result lists may be plain columns, `*`, or the `count`/`min`/`max`/`sum`/`avg`
+aggregates, typed per Postgres's promotion rules (e.g. `count` → non-null
+`int64`, `sum` of an integer → nullable `int64`, `avg` → nullable numeric).
+Multi-table JOINs are not supported yet — see ISS-2 in
+[docs/ISSUES.md](docs/ISSUES.md).
 
 Then run:
 
@@ -138,12 +140,15 @@ Check that the live database schema matches what your migrations define — a
 drift check and migration smoke test:
 
 ```
-sequa verify --dsn "$DATABASE_URL"    # prints OK, or lists drift and exits non-zero
+sequa verify --dsn "$DATABASE_URL"                # against an existing database
+sequa verify --ephemeral --dsn "$DATABASE_URL"    # spin up a throwaway DB, apply migrations, verify
 ```
 
 It parses the up-migrations into a catalog, introspects the live schema via
 `pg_catalog`, and reports missing/extra tables and columns plus type and
-nullability mismatches.
+nullability mismatches. With `--ephemeral` it creates a throwaway database
+(requires CREATEDB), applies the migrations to it, and verifies against that —
+a zero-setup migration smoke test.
 
 ## Embeddable library — `pkg/sequa`
 

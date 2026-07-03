@@ -10,8 +10,13 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `sequa verify` (M4): introspect the live database via `pg_catalog` and diff it
   against the migration-defined schema; reports missing/extra tables and columns,
   type mismatches, and nullability mismatches, and exits non-zero on drift.
-- `generate`: `count`/`min`/`max` aggregate result columns (`count` → non-null
-  `int64`; `min`/`max` → the argument column's type, nullable).
+- `generate`: `count`/`min`/`max`/`sum`/`avg` aggregate result columns, typed
+  per Postgres promotion rules (`count` → non-null `int64`; `min`/`max` → the
+  column's type, nullable; `sum`/`avg` → widened numeric, nullable).
+- `sequa verify --ephemeral`: create a throwaway database, apply the migrations,
+  and verify against it — a zero-setup drift check / migration smoke test.
+- Release automation: `.goreleaser.yaml` + release workflow (linux/windows via
+  zig cgo cross-compile) and `sequa --version`.
 - Golden-file tests pinning the full generated `models.go`/`queries.go`.
 - CI workflow: build + vet + `test -short`, golangci-lint v2, govulncheck, and a
   real-Postgres integration job; required status checks on `main`.
@@ -22,6 +27,11 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - Go toolchain bumped to 1.26.4, patching called standard-library
   vulnerabilities (GO-2026-4870, GO-2026-4866, GO-2026-4865).
+- Extracted an `Engine` interface for codegen (M5 phase 1); `generate` routes
+  through it. Postgres output is unchanged.
+- Reduced codegen cognitive complexity and tightened the gocognit/gocyclo gate
+  to 15.
+- CI jobs are now required status checks on `main`.
 - Consolidated duplicated codegen/CLI/migrate helpers (`migrate.ParseFilename`,
   `cli.newRunnerFromFlags`, `codegen.camelWords`/`buildGoStruct`/`renderFormatted`,
   `slices.DeleteFunc`).
@@ -31,5 +41,7 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   could silently reorder the schema catalog); it now propagates the parse error.
 - Schema-history rows lost to an ill-timed crash are reconciled on the next
   `migrate up`/`down` (ISS-1 mitigated).
+- `verify` no longer reports migrate's `schema_migrations` and sequa's
+  `sequa_schema_history` bookkeeping tables as drift.
 
 [Unreleased]: https://github.com/inovacc/sequa/commits/main
