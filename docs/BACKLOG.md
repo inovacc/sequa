@@ -1,5 +1,5 @@
 # Backlog
-<!-- rev:005 -->
+<!-- rev:006 -->
 
 Prioritized future work and tech debt for **sequa**. Items that map to a planned
 milestone are marked `→ M5` (tracked in [docs/ROADMAP.md](./ROADMAP.md)). Known
@@ -10,6 +10,10 @@ release readiness / next milestone · **P3** = later.
 
 ## Recently shipped
 
+- ✅ **CI hardening** (maturity Phase 1) — gitleaks secret scan, `-race` on unit + integration, coverage-floor gate, pinned govulncheck, aligned action versions.
+- ✅ **Graceful shutdown** — SIGINT/SIGTERM cancels the command context.
+- ✅ **CLI test coverage** — database-free command tests; coverage floor ratcheted to 67%.
+- ✅ **Maturity assessment** — `docs/analysis/MATURITY.md` (Stage 4, 90.7) + leverage-ranked route.
 - ✅ **Inner JOINs in `generate`** — multi-table INNER JOIN queries with an explicit column list; qualified/unqualified resolution, cross-table param binding, aggregates over joined columns. Outer joins deferred (ISS-2).
 - ✅ **Coverage reporting** — `task test:cover` + a CI coverage summary and artifact.
 - ✅ **`verify` + `--ephemeral`** — live drift check; ephemeral spins up a throwaway DB, applies migrations, verifies, drops it.
