@@ -72,7 +72,8 @@ jobs:
       # The gitleaks-action requires a paid license for org-owned repos; the CLI
       # is free (Apache-2.0). Pinned + built with the job's Go for reproducibility.
       - name: Install gitleaks
-        run: go install github.com/gitleaks/gitleaks/v8@v8.30.1
+        # Module path is still declared as zricethezav even though the repo moved.
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
       - name: Scan for secrets
         run: "$(go env GOPATH)/bin/gitleaks dir . --config .gitleaks.toml --redact --no-banner"
 
