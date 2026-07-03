@@ -27,8 +27,8 @@ jobs:
         run: go build ./...
       - name: Vet
         run: go vet ./...
-      - name: Test (short)
-        run: go test -short ./...
+      - name: Test (short, race)
+        run: go test -short -race ./...
 
   lint:
     name: golangci-lint
@@ -57,8 +57,25 @@ jobs:
           cache: true
       - name: Run govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
           "$(go env GOPATH)/bin/govulncheck" ./...
+
+  secrets:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      # The gitleaks-action requires a paid license for org-owned repos; the CLI
+      # is free (Apache-2.0). Pinned + built with the job's Go for reproducibility.
+      - name: Install gitleaks
+        # Module path is still declared as zricethezav even though the repo moved.
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - name: Scan for secrets
+        run: "$(go env GOPATH)/bin/gitleaks dir . --config .gitleaks.toml --redact --no-banner"
 
   integration:
     name: integration (real Postgres)
@@ -84,15 +101,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Full suite with coverage (serialized; integration tests hit Postgres)
+      - name: Full suite with race + coverage (serialized; integration tests hit Postgres)
         run: |
-          go test -p 1 -covermode=atomic -coverprofile=coverage.out ./...
+          go test -race -p 1 -covermode=atomic -coverprofile=coverage.out ./...
           {
             echo "### Coverage"
             echo '```'
             go tool cover -func=coverage.out | tail -1
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Coverage gate (ratchet floor)
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          floor=66.0
+          echo "total coverage: ${total}% (floor ${floor}%)"
+          awk -v t="$total" -v f="$floor" 'BEGIN { if (t+0 < f+0) exit 1 }' \
+            || { echo "::error::coverage ${total}% is below the ${floor}% floor — raise coverage or lower the floor deliberately"; exit 1; }
       - name: Upload coverage profile
         uses: actions/upload-artifact@v4
         with:
