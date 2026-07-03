@@ -12,9 +12,11 @@ import (
 type QueryCmd string
 
 const (
-	CmdOne  QueryCmd = ":one"
-	CmdMany QueryCmd = ":many"
-	CmdExec QueryCmd = ":exec"
+	CmdOne        QueryCmd = ":one"
+	CmdMany       QueryCmd = ":many"
+	CmdExec       QueryCmd = ":exec"
+	CmdExecRows   QueryCmd = ":execrows"   // Exec returning rows-affected (int64)
+	CmdExecResult QueryCmd = ":execresult" // Exec returning sql.Result
 )
 
 // Param is a query parameter ($N) with its inferred Go type.
@@ -41,9 +43,48 @@ type rawQuery struct {
 	SQL  string
 }
 
-var queryHeaderRe = regexp.MustCompile(`^--\s*name:\s+(\w+)\s+(:one|:many|:exec)\s*$`)
+var (
+	// queryHeaderRe matches a well-formed query header: `-- name: Name :verb`.
+	// It accepts ANY :verb (validated by validateVerb) so an unknown verb is
+	// reported clearly rather than being silently merged into the previous
+	// query's SQL.
+	queryHeaderRe = regexp.MustCompile(`^--\s*name:\s+(\w+)\s+(:\w+)\s*$`)
+	// nameLineRe matches a header-SHAPED line (`-- name: Foo :verb`, including a
+	// stray space before the colon or trailing junk) that queryHeaderRe rejected,
+	// so a real header typo fails loudly — while a prose comment that merely
+	// starts with "-- name:" (e.g. "-- name: lookup is by primary key") stays
+	// ordinary SQL.
+	nameLineRe = regexp.MustCompile(`^--\s*name\s*:\s+\w+\s+:\w+`)
+)
 
-func parseQueryFile(content string) []rawQuery {
+// isExecFamily reports whether cmd is an exec-style verb that scans no result
+// columns.
+func isExecFamily(cmd QueryCmd) bool {
+	switch cmd {
+	case CmdExec, CmdExecRows, CmdExecResult:
+		return true
+	default:
+		return false
+	}
+}
+
+// validateVerb rejects unknown or unsupported query verbs with an actionable
+// error, so a bad annotation fails clearly at generation time instead of
+// producing broken or misleading output.
+func validateVerb(cmd QueryCmd) error {
+	switch cmd {
+	case CmdOne, CmdMany, CmdExec, CmdExecRows, CmdExecResult:
+		return nil
+	case ":copyfrom", ":batchexec", ":batchmany", ":batchone":
+		return fmt.Errorf("unsupported command %q: requires the pgx driver (sequa generates database/sql + lib/pq code)", cmd)
+	case ":execlastid":
+		return fmt.Errorf("unsupported command %q: LastInsertId is not available on PostgreSQL — use RETURNING with :one", cmd)
+	default:
+		return fmt.Errorf("unknown command %q (want :one, :many, :exec, :execrows, or :execresult)", cmd)
+	}
+}
+
+func parseQueryFile(content string) ([]rawQuery, error) {
 	var out []rawQuery
 	var cur *rawQuery
 	flush := func() {
@@ -53,23 +94,31 @@ func parseQueryFile(content string) []rawQuery {
 		}
 	}
 	for _, line := range strings.Split(content, "\n") {
-		if m := queryHeaderRe.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
+		trimmed := strings.TrimSpace(line)
+		if m := queryHeaderRe.FindStringSubmatch(trimmed); m != nil {
 			flush()
 			cur = &rawQuery{Name: m[1], Cmd: QueryCmd(m[2])}
 			continue
+		}
+		if nameLineRe.MatchString(trimmed) {
+			return nil, fmt.Errorf("malformed query header %q (want `-- name: Name :verb`)", trimmed)
 		}
 		if cur != nil {
 			cur.SQL += line + "\n"
 		}
 	}
 	flush()
-	return out
+	return out, nil
 }
 
 // AnalyzeQueries parses a queries file and types each query against the catalog.
 func AnalyzeQueries(cat *Catalog, content string) ([]Query, error) {
+	raws, err := parseQueryFile(content)
+	if err != nil {
+		return nil, err
+	}
 	var queries []Query
-	for _, rq := range parseQueryFile(content) {
+	for _, rq := range raws {
 		q, err := analyzeQuery(cat, rq)
 		if err != nil {
 			return nil, fmt.Errorf("query %s: %w", rq.Name, err)
@@ -80,6 +129,9 @@ func AnalyzeQueries(cat *Catalog, content string) ([]Query, error) {
 }
 
 func analyzeQuery(cat *Catalog, rq rawQuery) (Query, error) {
+	if err := validateVerb(rq.Cmd); err != nil {
+		return Query{}, err
+	}
 	res, err := pgquery.Parse(rq.SQL)
 	if err != nil {
 		return Query{}, fmt.Errorf("parse: %w", err)
@@ -98,7 +150,7 @@ func analyzeQuery(cat *Catalog, rq rawQuery) (Query, error) {
 	}
 	q.Params = params
 
-	if q.Cmd == CmdExec {
+	if isExecFamily(q.Cmd) {
 		q.Columns, q.Star = nil, false
 	} else if len(q.Columns) == 0 {
 		return Query{}, fmt.Errorf("%s query returns no columns", q.Cmd)
@@ -144,7 +196,14 @@ func inferParams(binds map[int]Column) ([]Param, error) {
 			maxN = n
 		}
 	}
-	used := map[string]int{}
+	// Seed with the identifiers the generated method bodies use — the receiver
+	// (q), ctx, and the per-verb locals — so a parameter bound to a column of the
+	// same name is renamed (e.g. result -> result2) instead of shadowing or
+	// redeclaring them, which passes gofmt but fails to compile.
+	used := map[string]int{
+		"ctx": 1, "q": 1, "err": 1, "result": 1,
+		"row": 1, "rows": 1, "i": 1, "items": 1,
+	}
 	var params []Param
 	for n := 1; n <= maxN; n++ {
 		col, ok := binds[n]

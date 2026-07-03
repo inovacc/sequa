@@ -1,4 +1,5 @@
 # `sequa generate` & `sequa query`
+<!-- rev:001 -->
 
 Sequa's code-side verbs, both driven by the **migration-defined schema** (the
 single source of truth) and a `sequa.yaml` config.
@@ -89,6 +90,14 @@ DELETE FROM users WHERE id = $1;
 | `:one`  | `(Row, error)` via `QueryRowContext` |
 | `:many` | `([]Row, error)` via `QueryContext` |
 | `:exec` | `error` via `ExecContext` |
+| `:execrows` | `(int64, error)` — `ExecContext` then `result.RowsAffected()` |
+| `:execresult` | `(sql.Result, error)` via `ExecContext` |
+
+The exec-family verbs (`:exec`, `:execrows`, `:execresult`) scan no result
+columns; a `RETURNING` clause on them is ignored. Verbs that require the pgx
+driver (`:copyfrom`, `:batchexec`, `:batchmany`, `:batchone`) and `:execlastid`
+(unavailable on PostgreSQL — use `RETURNING` with `:one`) are rejected with a
+clear error rather than emitting broken code.
 
 The result row is the **table model** for `SELECT *` / `RETURNING *`, or a
 per-query `<Name>Row` struct for an explicit column list. Parameter Go types are

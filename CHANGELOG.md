@@ -7,6 +7,10 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `generate`: `:execrows` (→ `(int64, error)` via `RowsAffected()`) and
+  `:execresult` (→ `(sql.Result, error)`) query verbs. Unknown verbs and
+  pgx-only verbs (`:copyfrom`, `:batchexec/many/one`, `:execlastid`) are now
+  rejected with a clear, actionable error.
 - `sequa cmdtree` and `sequa aicontext`: introspection commands that render the
   live command tree — as a compact/verbose ASCII tree, per-command detail, JSON,
   or an AI-context Markdown/JSON reference. Generated from the command tree, so
@@ -16,6 +20,13 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI hardening: gitleaks secret scan, `-race` on the unit and real-Postgres
   integration jobs, and a coverage-floor gate.
 - Maturity assessment at `docs/analysis/MATURITY.md` (Stage 4, weighted 90.7).
+
+### Fixed
+- `generate`: an unrecognized query verb no longer silently merges its SQL into
+  the previous query (which surfaced a misleading "expected exactly one SQL
+  statement" against the wrong query); malformed `-- name:` headers now fail
+  clearly. Parameters that collide with a generated method's local variables
+  (e.g. a column named `result`) are renamed so the output always compiles.
 
 ### Changed
 - Pinned `govulncheck` (v1.5.0) and aligned GitHub Action versions across
