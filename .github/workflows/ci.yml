@@ -84,5 +84,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Full suite (serialized; integration tests hit Postgres)
-        run: go test -p 1 ./...
+      - name: Full suite with coverage (serialized; integration tests hit Postgres)
+        run: |
+          go test -p 1 -covermode=atomic -coverprofile=coverage.out ./...
+          {
+            echo "### Coverage"
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
