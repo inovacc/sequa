@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -41,9 +43,13 @@ func newRootCmd() *cobra.Command {
 	return root
 }
 
-// Execute is the single entrypoint used by main().
+// Execute is the single entrypoint used by main(). It runs under a context that
+// is cancelled on SIGINT/SIGTERM so an interrupted command (e.g. `migrate up`)
+// unwinds cleanly instead of being killed mid-step.
 func Execute() {
-	if err := newRootCmd().ExecuteContext(context.Background()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
