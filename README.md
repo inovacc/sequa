@@ -1,5 +1,5 @@
 # sequa
-<!-- rev:004 -->
+<!-- rev:005 -->
 
 [![CI](https://github.com/inovacc/sequa/actions/workflows/ci.yml/badge.svg)](https://github.com/inovacc/sequa/actions/workflows/ci.yml)
 
@@ -149,6 +149,24 @@ It parses the up-migrations into a catalog, introspects the live schema via
 nullability mismatches. With `--ephemeral` it creates a throwaway database
 (requires CREATEDB), applies the migrations to it, and verifies against that —
 a zero-setup migration smoke test.
+
+### Tooling — `cmdtree` & `aicontext`
+
+Two introspection commands that describe the CLI itself — handy for docs and for
+feeding AI assistants a current command reference:
+
+```
+sequa cmdtree                       # compact ASCII tree of every command
+sequa cmdtree --full                # per-command usage, description, and flags
+sequa cmdtree --command migrate     # details for a single command
+sequa cmdtree --json                # machine-readable tree
+
+sequa aicontext                     # Markdown reference of all commands + flags
+sequa aicontext --compact           # one line per command
+sequa aicontext --json              # structured JSON
+```
+
+Because the output is generated from the live command tree, it never goes stale.
 
 ## Embeddable library — `pkg/sequa`
 

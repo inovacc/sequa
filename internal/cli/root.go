@@ -40,6 +40,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "verbose (debug) logging")
 
 	root.AddCommand(newMigrateCmd(), newGenerateCmd(), newQueryCmd(), newInitCmd(), newVerifyCmd())
+	root.AddCommand(newCmdtreeCmd(), newAicontextCmd())
 	return root
 }
 
