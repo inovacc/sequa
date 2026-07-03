@@ -1,4 +1,5 @@
 # sequa documentation
+<!-- rev:001 -->
 
 Documentation index. For install and usage, start with the project
 [README](../README.md).
@@ -16,6 +17,7 @@ Documentation index. For install and usage, start with the project
 
 ## Design specs (planned features)
 
+- [specs/adopt.md](specs/adopt.md) — `sequa adopt`: deterministic detection & conversion of existing DB tooling (sqlc / golang-migrate / goose / dbmate / atlas …) into sequa.
 - [specs/generate-joins.md](specs/generate-joins.md) — outer-join support (inner joins already shipped).
 - [specs/generate-batch-verbs.md](specs/generate-batch-verbs.md) — `:copyfrom` / `:batch` query verbs.
 - [specs/M5-engines.md](specs/M5-engines.md) — MySQL / SQLite codegen behind the `Engine` seam.
