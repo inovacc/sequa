@@ -13,6 +13,10 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `generate`: `count`/`min`/`max`/`sum`/`avg` aggregate result columns, typed
   per Postgres promotion rules (`count` → non-null `int64`; `min`/`max` → the
   column's type, nullable; `sum`/`avg` → widened numeric, nullable).
+- `generate`: multi-table **INNER JOIN** support — explicit column lists with
+  qualified/unqualified resolution, cross-table param binding, and aggregates
+  over joined columns (outer joins and `*`-across-joins deferred).
+- Coverage reporting — `task test:cover` and a CI coverage summary/artifact.
 - `sequa verify --ephemeral`: create a throwaway database, apply the migrations,
   and verify against it — a zero-setup drift check / migration smoke test.
 - Release automation: `.goreleaser.yaml` + release workflow (linux/windows via
