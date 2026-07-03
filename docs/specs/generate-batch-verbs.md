@@ -1,6 +1,6 @@
 # generate: :copyfrom and :batch query verbs (design spec)
 
-Status: proposed · Author: hardening pass 2026-07-02 · Tracks: BACKLOG P3
+Status: proposed (2026-07-02) · Tracks: BACKLOG P3
 
 Point-in-time design record. Not a living doc — do not rev-tag.
 

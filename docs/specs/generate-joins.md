@@ -1,6 +1,6 @@
 # generate: multi-table JOIN support (design spec)
 
-Status: proposed · Author: hardening pass 2026-07-02 · Tracks: ISS-2, BACKLOG P1
+Status: proposed (2026-07-02) · Tracks: ISS-2, BACKLOG P1
 
 Point-in-time design record. Not a living doc — do not rev-tag.
 

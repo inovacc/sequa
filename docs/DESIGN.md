@@ -2,10 +2,10 @@
 
 > One Go tool to **migrate, query, and generate** type-safe Go from a single SQL schema, where your **migrations are the source of truth**.
 
-- **Date:** 2026-06-26
-- **Status:** Design — awaiting user review
+- **Status:** the original design reference. Implemented through v0.1.0 (M1–M4);
+  see [ROADMAP.md](ROADMAP.md) for current milestone state and any deviations.
 - **Binary:** `sequa`
-- **Module path:** `github.com/<owner>/sequa` *(owner to confirm — single input needed)*
+- **Module path:** `github.com/inovacc/sequa`
 
 ## 1. Thesis & Scope
 
