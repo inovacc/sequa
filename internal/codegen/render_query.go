@@ -6,16 +6,18 @@ import (
 )
 
 type queryMethod struct {
-	Name      string
-	ConstName string
-	SQL       string
-	IsExec    bool
-	IsOne     bool
-	IsMany    bool
-	Args      []goField // param args (Name + Type)
-	ArgNames  []string
-	RowType   string
-	ScanList  []string
+	Name         string
+	ConstName    string
+	SQL          string
+	IsExec       bool // :exec — returns error only
+	IsExecRows   bool // :execrows — returns (int64, error)
+	IsExecResult bool // :execresult — returns (sql.Result, error)
+	IsOne        bool
+	IsMany       bool
+	Args         []goField // param args (Name + Type)
+	ArgNames     []string
+	RowType      string
+	ScanList     []string
 }
 
 type queriesFile struct {
@@ -50,12 +52,14 @@ func RenderQueries(cat *Catalog, queries []Query, pkg string) ([]byte, error) {
 // struct it scans into (nil otherwise). Type imports are recorded in importSet.
 func buildMethod(q Query, importSet map[string]struct{}) (queryMethod, *goStruct) {
 	m := queryMethod{
-		Name:      q.Name,
-		ConstName: lowerFirst(q.Name),
-		SQL:       q.SQL,
-		IsExec:    q.Cmd == CmdExec,
-		IsOne:     q.Cmd == CmdOne,
-		IsMany:    q.Cmd == CmdMany,
+		Name:         q.Name,
+		ConstName:    lowerFirst(q.Name),
+		SQL:          q.SQL,
+		IsExec:       q.Cmd == CmdExec,
+		IsExecRows:   q.Cmd == CmdExecRows,
+		IsExecResult: q.Cmd == CmdExecResult,
+		IsOne:        q.Cmd == CmdOne,
+		IsMany:       q.Cmd == CmdMany,
 	}
 	for _, p := range q.Params {
 		if p.GoType.Import != "" {
@@ -64,7 +68,7 @@ func buildMethod(q Query, importSet map[string]struct{}) (queryMethod, *goStruct
 		m.Args = append(m.Args, goField{Name: p.Name, Type: p.GoType.Name})
 		m.ArgNames = append(m.ArgNames, p.Name)
 	}
-	if q.Cmd == CmdExec {
+	if isExecFamily(q.Cmd) {
 		return m, nil
 	}
 	var rowStruct *goStruct
@@ -120,6 +124,18 @@ const {{.ConstName}} = ` + "`{{.SQL}}`" + `
 func (q *Queries) {{.Name}}(ctx context.Context{{range .Args}}, {{.Name}} {{.Type}}{{end}}) error {
 	_, err := q.db.ExecContext(ctx, {{.ConstName}}{{range .ArgNames}}, {{.}}{{end}})
 	return err
+}
+{{else if .IsExecRows -}}
+func (q *Queries) {{.Name}}(ctx context.Context{{range .Args}}, {{.Name}} {{.Type}}{{end}}) (int64, error) {
+	result, err := q.db.ExecContext(ctx, {{.ConstName}}{{range .ArgNames}}, {{.}}{{end}})
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+{{else if .IsExecResult -}}
+func (q *Queries) {{.Name}}(ctx context.Context{{range .Args}}, {{.Name}} {{.Type}}{{end}}) (sql.Result, error) {
+	return q.db.ExecContext(ctx, {{.ConstName}}{{range .ArgNames}}, {{.}}{{end}})
 }
 {{else if .IsOne -}}
 func (q *Queries) {{.Name}}(ctx context.Context{{range .Args}}, {{.Name}} {{.Type}}{{end}}) ({{.RowType}}, error) {

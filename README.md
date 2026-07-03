@@ -1,5 +1,5 @@
 # sequa
-<!-- rev:005 -->
+<!-- rev:006 -->
 
 [![CI](https://github.com/inovacc/sequa/actions/workflows/ci.yml/badge.svg)](https://github.com/inovacc/sequa/actions/workflows/ci.yml)
 
@@ -102,6 +102,8 @@ DELETE FROM users WHERE id = $1;
 | `:one`  | `(Row, error)` via `QueryRowContext` |
 | `:many` | `([]Row, error)` via `QueryContext` |
 | `:exec` | `error` via `ExecContext` |
+| `:execrows` | `(int64, error)` via `ExecContext` + `RowsAffected()` |
+| `:execresult` | `(sql.Result, error)` via `ExecContext` |
 
 Result lists may be plain columns, `*`, or the `count`/`min`/`max`/`sum`/`avg`
 aggregates, typed per Postgres's promotion rules (e.g. `count` → non-null
