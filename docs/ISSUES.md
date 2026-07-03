@@ -1,5 +1,5 @@
 # Known Issues & Limitations
-<!-- rev:005 -->
+<!-- rev:007 -->
 
 This document tracks known bugs and by-design limitations in sequa. Each
 entry has a short id, a description, its impact, and a status or workaround.
@@ -30,21 +30,29 @@ Entries are classified as either:
   instant was never captured). `migrate status` continues to tolerate a
   transient gap.
 
-## ISS-2 — `generate` supports only single-table queries
+## ISS-2 — `generate` JOIN support is limited to inner joins
 
 - **Type:** limitation (by design, current scope)
-- **Description:** `sequa generate` handles single-statement, single-table
-  queries. Result lists may be plain columns, `*`, or the `count`, `min`, `max`,
-  `sum`, and `avg` aggregates (typed per Postgres's promotion rules — e.g.
-  `count` → non-null `int64`, `sum` of an integer → nullable `int64`, `avg` →
-  nullable numeric). Multi-table JOINs and arbitrary computed expressions in the
-  result list are not yet supported.
-- **Impact:** Queries that span multiple tables or project unsupported derived
-  values cannot be turned into typed methods by codegen today.
+- **Description:** `sequa generate` handles single-statement queries. Single-table
+  result lists may be plain columns, `*`, or the `count`, `min`, `max`, `sum`,
+  and `avg` aggregates (typed per Postgres's promotion rules — e.g. `count` →
+  non-null `int64`, `sum` of an integer → nullable `int64`, `avg` → nullable
+  numeric). Multi-table **INNER JOINs are now supported** with an explicit
+  result-column list: qualified (`a.x`) or unqualified columns resolve across the
+  joined relations (ambiguous bare names and duplicate result names error out),
+  `WHERE` params bind across the tables, and aggregates may take a joined column.
+  Still unsupported: outer joins (`LEFT`/`RIGHT`/`FULL`), `SELECT *` across a
+  JOIN, parameters inside a JOIN `ON` clause (put filter params in `WHERE`), and
+  arbitrary computed expressions in the result list.
+- **Impact:** Inner-join queries with explicit columns now generate typed
+  methods. Outer-join nullability, `*`-across-joins, and derived expressions
+  cannot yet be turned into typed methods by codegen.
 - **Status / workaround:** Partially addressed — `count`/`min`/`max`/`sum`/`avg`
-  landed; JOINs and arbitrary expressions remain planned. For now, keep annotated
-  queries to a single table with plain-column, `*`, or count/min/max/sum/avg
-  result lists; write more complex access by hand.
+  and INNER JOINs (explicit columns) landed; outer joins, `*`-across-joins, and
+  arbitrary expressions remain planned (see
+  [docs/specs/generate-joins.md](./specs/generate-joins.md)). For now, list JOIN
+  result columns explicitly, use INNER JOIN, and write outer-join / derived-value
+  access by hand.
 
 ## ISS-3 — the current build is Postgres-only (all verbs)
 

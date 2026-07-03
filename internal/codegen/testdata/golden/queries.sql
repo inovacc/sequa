@@ -18,3 +18,9 @@ SELECT count(*) AS total, min(price_cents) AS cheapest, max(id) AS latest_id FRO
 
 -- name: PriceStats :one
 SELECT sum(price_cents) AS total_cents, avg(price_cents) AS avg_cents FROM books;
+
+-- name: ListBooksWithAuthor :many
+SELECT b.id AS book_id, b.title, b.price_cents, a.name AS author_name
+FROM books b
+INNER JOIN authors a ON b.author_id = a.id
+WHERE a.id = $1;
