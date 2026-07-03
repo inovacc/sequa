@@ -7,6 +7,10 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `sequa cmdtree` and `sequa aicontext`: introspection commands that render the
+  live command tree — as a compact/verbose ASCII tree, per-command detail, JSON,
+  or an AI-context Markdown/JSON reference. Generated from the command tree, so
+  they never go stale.
 - Graceful shutdown: SIGINT/SIGTERM cancels the running command's context, so an
   interrupted `migrate up` unwinds cleanly instead of being killed mid-step.
 - CI hardening: gitleaks secret scan, `-race` on the unit and real-Postgres
