@@ -1,36 +1,34 @@
 # Backlog
-<!-- rev:003 -->
+<!-- rev:004 -->
 
-Prioritized future work and tech debt for **sequa**. Items here are not owned by
-a milestone number; where an item maps to a planned milestone it is marked
-`→ M5` (tracked in [docs/ROADMAP.md](./ROADMAP.md)) and listed here for
-visibility. Known bugs and by-design limits live in
-[docs/ISSUES.md](./ISSUES.md).
+Prioritized future work and tech debt for **sequa**. Items that map to a planned
+milestone are marked `→ M5` (tracked in [docs/ROADMAP.md](./ROADMAP.md)). Known
+bugs and by-design limits live in [docs/ISSUES.md](./ISSUES.md).
 
 Priority: **P1** = blocks real-world use or a core quality gate · **P2** =
 release readiness / next milestone · **P3** = later.
 
-## Recently shipped (2026-07-02)
+## Recently shipped
 
-- ✅ **Golden-file codegen tests** — generated Go pinned per input fixture so codegen cannot regress silently.
-- ✅ **Schema-history self-heal** — a history row lost to an ill-timed crash is reconciled on the next `up`/`down` (ISS-1 mitigated).
-- ✅ **CI workflow** — build + vet + `test -short`, golangci-lint v2, govulncheck, and a real-Postgres integration job on push/PR.
-- ✅ **`count`/`min`/`max` aggregates in `generate`** — first slice of "broaden generate".
-- ✅ **`sequa verify`** (M4 core) — introspect the live schema via `pg_catalog` and diff it against the migrations.
-- ✅ **Go 1.26.4 bump** — patches the called stdlib CVEs govulncheck flagged.
+- ✅ **`verify` + `--ephemeral`** — live drift check; ephemeral spins up a throwaway DB, applies migrations, verifies, drops it.
+- ✅ **`generate` aggregates** — `count`/`min`/`max`/`sum`/`avg` result columns, typed per Postgres promotion.
+- ✅ **M5 phase 1** — `Engine` interface + `postgresEngine`; `generate` routes through the seam (Postgres output unchanged).
+- ✅ **Release automation** — `.goreleaser.yaml` + release workflow (linux/windows via zig), `sequa --version`.
+- ✅ **CI as a required status check on `main`**; **Dependabot** (gomod + actions).
+- ✅ **Contributor scaffolding** — `CONTRIBUTING.md`, issue/PR templates, `CHANGELOG.md`.
+- ✅ **Complexity ratchet** — codegen functions ≤ 15; gocognit/gocyclo gate lowered to 15.
+- ✅ **Golden-file codegen tests**, **schema-history self-heal** (ISS-1), **Go 1.26.4** stdlib CVE patch, **verify bookkeeping-table** fix.
 
 ## P1 — blocks real-world use / core quality gates
 
-- **Broaden `generate` further: JOINs, `sum`/`avg`, computed expressions, table aliases, multi-statement queries** — `count`/`min`/`max` landed; the rest of ISS-2 remains, so multi-table and most derived-value queries still cannot be turned into typed methods.
+- **Broaden `generate`: multi-table JOINs** — the last major single-table limit (ISS-2). Correctness-sensitive (outer-join nullability); design in [specs/generate-joins.md](./specs/generate-joins.md). Arbitrary computed expressions also remain.
 
 ## P2 — release readiness / next milestone
 
-- **Wire CI as a required status check on `main`** — the workflow exists and is green; make it a required check under branch protection so a red PR cannot merge.
-- **`.goreleaser` config + release workflow** — no release automation exists; needed to build and publish versioned, multi-platform `sequa` binaries.
-- **Ephemeral-DB auto-replay for `verify`** `→ M4 follow-up` — spin up a throwaway database, replay the up chain, and verify, so `verify` needs no pre-migrated target.
+- **macOS release builds** — the release workflow ships linux + windows; darwin needs a native runner or the macOS SDK for cgo (`.goreleaser.yaml` note).
+- **M5 phases 2–3: MySQL & SQLite codegen** `→ M5` — implement engines behind the phase-1 seam; design in [specs/M5-engines.md](./specs/M5-engines.md).
 
 ## P3 — later
 
-- **MySQL & SQLite codegen behind an `Engine` interface** `→ M5` — extend `generate` beyond Postgres; design in [specs/M5-engines.md](./specs/M5-engines.md). Today all three verbs are Postgres-only (see ISS-3). Not yet built.
-- **More query annotations (`:copyfrom`, `:batch`)** — extend the supported result verbs beyond `:one` / `:many` / `:exec` for bulk-insert and batched access.
-- **Docs site** — publish `docs/` as a browsable site rather than raw Markdown in the repo.
+- **`:copyfrom` / `:batch` query verbs** — bulk-insert / batched access; impedance mismatch with `lib/pq`/`database/sql` (batch needs pgx). Design in [specs/generate-batch-verbs.md](./specs/generate-batch-verbs.md).
+- **Docs site** — publish `docs/` as a browsable site rather than raw Markdown.

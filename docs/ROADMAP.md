@@ -1,5 +1,5 @@
 # Roadmap
-<!-- rev:003 -->
+<!-- rev:004 -->
 
 Milestone roadmap for **sequa** — one Go tool to migrate, query, and generate
 type-safe Go from a single SQL schema.
@@ -18,9 +18,9 @@ type-safe Go from a single SQL schema.
 
 | Horizon | Milestone | State |
 |---------|-----------|-------|
-| **Now** (shipped) | M1 Spine + migrate, M2 query, M3 generate (Postgres), M4 `verify` (introspect + drift diff) | ✅ done |
-| **Next** | M5 engines 2 & 3 (MySQL + SQLite codegen) — see [specs/M5-engines.md](./specs/M5-engines.md) | ⬜ planned |
-| **Later** | Ephemeral-DB auto-replay for `verify`; broaden `generate` (JOINs, sum/avg) | ⬜ backlog |
+| **Now** (shipped) | M1–M3, M4 `verify` (introspect + drift diff, incl. `--ephemeral`), M5 phase 1 (Engine boundary) | ✅ done |
+| **Next** | M5 phases 2–3: MySQL + SQLite codegen behind the Engine seam — see [specs/M5-engines.md](./specs/M5-engines.md) | ⬜ planned |
+| **Later** | Broaden `generate` (JOINs, `:copyfrom`/`:batch`) — see [specs/generate-joins.md](./specs/generate-joins.md) & [specs/generate-batch-verbs.md](./specs/generate-batch-verbs.md) | ⬜ backlog |
 
 ## Milestones
 
@@ -83,16 +83,19 @@ migrations actually produce; doubles as a migration smoke test.
 optional ephemeral-DB auto-replay (spin up a throwaway database, apply the up
 chain, verify) — tracked in the backlog.
 
-### M5 — engines 2 & 3 ⬜
+### M5 — engines 2 & 3 ⬜ (phase 1 shipped)
 
 **Goal:** extend codegen beyond Postgres.
 
-**Planned to deliver:**
-- MySQL codegen behind an `Engine` interface.
-- SQLite codegen behind the same interface.
+**Delivers:**
+- ✅ Phase 1: an `Engine` interface + `postgresEngine`; `generate` routes through
+  `engineFor(engine)`. This is the seam other engines plug into; Postgres output
+  is unchanged.
+- ⬜ Phase 2: MySQL codegen behind the interface.
+- ⬜ Phase 3: SQLite codegen behind the interface.
 
-**Status:** planned — design in [specs/M5-engines.md](./specs/M5-engines.md)
-(engine-boundary extraction first, then MySQL, then SQLite). **Not yet built.**
+**Status:** phase 1 (engine boundary) shipped; MySQL/SQLite planned — design in
+[specs/M5-engines.md](./specs/M5-engines.md).
 
 ## Related docs
 
