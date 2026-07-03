@@ -113,9 +113,9 @@ jobs:
       - name: Coverage gate (ratchet floor)
         run: |
           total=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
-          # Floor has ~1% headroom below current (~66%) so a legitimate hard-to-
-          # test change doesn't fail CI; ratchet it up deliberately as coverage rises.
-          floor=65.0
+          # Ratchets up as coverage rises; keep ~2% headroom below current so a
+          # legitimate hard-to-test change doesn't fail CI.
+          floor=67.0
           echo "total coverage: ${total}% (floor ${floor}%)"
           awk -v t="$total" -v f="$floor" 'BEGIN { if (t+0 < f+0) exit 1 }' \
             || { echo "::error::coverage ${total}% is below the ${floor}% floor — raise coverage or lower the floor deliberately"; exit 1; }
