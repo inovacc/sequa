@@ -1,0 +1,20 @@
+# gitleaks config for sequa. The repo contains no real secrets; the only
+# credential-shaped strings are example/test DSNs and redaction-test fixtures.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Example/test credentials — not real secrets"
+paths = [
+  '''.*_test\.go''',
+  '''README\.md''',
+  '''CHANGELOG\.md''',
+  '''docs/.*''',
+  '''docker-compose\.test\.yml''',
+  '''\.github/workflows/.*''',
+  '''\.golangci\.yml''',
+]
+regexes = [
+  # Example Postgres DSNs (postgres://user:pass@host/db) used in docs and tests.
+  '''postgres(?:ql)?://[^@\s]+@''',
+]
