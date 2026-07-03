@@ -49,10 +49,17 @@ func newRootCmd() *cobra.Command {
 func Execute() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := newRootCmd().ExecuteContext(ctx); err != nil {
+	os.Exit(run(ctx, newRootCmd()))
+}
+
+// run executes root under ctx and returns the process exit code. Split from
+// Execute so the error/exit-code mapping is testable without calling os.Exit.
+func run(ctx context.Context, root *cobra.Command) int {
+	if err := root.ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 func setupLogger(verbose bool) {
