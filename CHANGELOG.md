@@ -6,6 +6,19 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Graceful shutdown: SIGINT/SIGTERM cancels the running command's context, so an
+  interrupted `migrate up` unwinds cleanly instead of being killed mid-step.
+- CI hardening: gitleaks secret scan, `-race` on the unit and real-Postgres
+  integration jobs, and a coverage-floor gate.
+- Maturity assessment at `docs/analysis/MATURITY.md` (Stage 4, weighted 90.7).
+
+### Changed
+- Pinned `govulncheck` (v1.5.0) and aligned GitHub Action versions across
+  workflows for reproducibility.
+- Raised CLI test coverage with database-free command tests; coverage floor
+  ratcheted to 67%.
+
 ## [0.1.0] - 2026-07-03
 
 First tagged release: a single Go tool for PostgreSQL migrations, an interactive
