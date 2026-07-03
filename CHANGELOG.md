@@ -6,6 +6,12 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-03
+
+First tagged release: a single Go tool for PostgreSQL migrations, an interactive
+SQL client/REPL, and type-safe Go codegen driven by your migrations, plus schema
+drift verification.
+
 ### Added
 - `sequa verify` (M4): introspect the live database via `pg_catalog` and diff it
   against the migration-defined schema; reports missing/extra tables and columns,
@@ -48,4 +54,5 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `verify` no longer reports migrate's `schema_migrations` and sequa's
   `sequa_schema_history` bookkeeping tables as drift.
 
-[Unreleased]: https://github.com/inovacc/sequa/commits/main
+[Unreleased]: https://github.com/inovacc/sequa/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/inovacc/sequa/releases/tag/v0.1.0
