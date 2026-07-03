@@ -110,6 +110,7 @@ func TestJoinAnalyzeErrors(t *testing.T) {
 		"qualified star rejected":   "-- name: Q :many\nSELECT b.* FROM books b INNER JOIN authors a ON b.author_id = a.id;",
 		"ambiguous unqualified":     "-- name: Q :many\nSELECT id FROM books b INNER JOIN authors a ON b.author_id = a.id;",
 		"duplicate result name":     "-- name: Q :many\nSELECT b.id, a.id FROM books b INNER JOIN authors a ON b.author_id = a.id;",
+		"go-name field collision":   "-- name: Q :many\nSELECT a.id AS \"ID\", b.id AS id FROM books b INNER JOIN authors a ON b.author_id = a.id;",
 		"unknown qualifier":         "-- name: Q :many\nSELECT x.id AS xid FROM books b INNER JOIN authors a ON b.author_id = a.id;",
 	}
 	for name, sql := range cases {

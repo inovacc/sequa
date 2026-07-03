@@ -510,10 +510,13 @@ func resolveJoinTargets(rels []relation, targets []*pgquery.Node) ([]Column, err
 		if err != nil {
 			return nil, err
 		}
-		if seen[col.Name] {
-			return nil, fmt.Errorf("duplicate result column %q; alias one with AS", col.Name)
+		// Key on the generated Go field name: distinct SQL names can still fold
+		// to the same identifier (e.g. "ID" and "id" both -> ID).
+		field := goName(col.Name)
+		if seen[field] {
+			return nil, fmt.Errorf("result column %q collides with another result field %q; alias one with AS", col.Name, field)
 		}
-		seen[col.Name] = true
+		seen[field] = true
 		cols = append(cols, col)
 	}
 	return cols, nil

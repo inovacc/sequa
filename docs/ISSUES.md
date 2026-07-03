@@ -1,5 +1,5 @@
 # Known Issues & Limitations
-<!-- rev:006 -->
+<!-- rev:007 -->
 
 This document tracks known bugs and by-design limitations in sequa. Each
 entry has a short id, a description, its impact, and a status or workaround.
@@ -42,7 +42,8 @@ Entries are classified as either:
   joined relations (ambiguous bare names and duplicate result names error out),
   `WHERE` params bind across the tables, and aggregates may take a joined column.
   Still unsupported: outer joins (`LEFT`/`RIGHT`/`FULL`), `SELECT *` across a
-  JOIN, and arbitrary computed expressions in the result list.
+  JOIN, parameters inside a JOIN `ON` clause (put filter params in `WHERE`), and
+  arbitrary computed expressions in the result list.
 - **Impact:** Inner-join queries with explicit columns now generate typed
   methods. Outer-join nullability, `*`-across-joins, and derived expressions
   cannot yet be turned into typed methods by codegen.
